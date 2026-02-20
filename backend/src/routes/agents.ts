@@ -5,6 +5,7 @@ import { pool } from '../db/index.js';
 import { errorResponse } from '../middleware/error-response.js';
 import { recordAuditLog } from '../services/audit-log.js';
 import { walletSigner } from '../services/wallet-signer.js';
+import { getUsdcBalance } from '../services/usdc.js';
 import { logger } from '../logger.js';
 
 const agentSchema = z.object({
@@ -145,11 +146,22 @@ agentsRouter.get('/:id/wallet', async (c) => {
     const balanceWei = await provider.getBalance(agent.wallet_address);
     const balanceEth = ethers.formatEther(balanceWei);
 
+    // Query USDC balance if contract is configured
+    let balanceUsdc: string | null = null;
+    if (process.env.USDC_CONTRACT_ADDRESS) {
+      try {
+        balanceUsdc = await getUsdcBalance(agent.wallet_address);
+      } catch (usdcErr) {
+        logger.warn({ err: usdcErr, wallet: agent.wallet_address }, 'Failed to query USDC balance');
+      }
+    }
+
     return c.json({
       agent_id: agent.id,
       wallet_address: agent.wallet_address,
       balance_wei: balanceWei.toString(),
-      balance_eth: balanceEth
+      balance_eth: balanceEth,
+      balance_usdc: balanceUsdc
     });
   } catch (err) {
     logger.error({ err, wallet: agent.wallet_address }, 'Failed to query wallet balance');

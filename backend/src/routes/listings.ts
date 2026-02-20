@@ -169,6 +169,32 @@ listingsRouter.post('/', async (c) => {
   }
 });
 
+/**
+ * GET /api/v1/listings/:id
+ * Retrieve a single listing by UUID, including average_rating and review_count.
+ */
+listingsRouter.get('/:id', async (c) => {
+  const id = c.req.param('id');
+  if (!z.string().uuid().safeParse(id).success) {
+    return errorResponse(
+      c, 400, 'invalid_id',
+      'Listing ID must be a valid UUID.',
+      'Provide a valid UUID.'
+    );
+  }
+
+  const result = await pool.query('SELECT * FROM listings WHERE id = $1', [id]);
+  if (result.rowCount === 0) {
+    return errorResponse(
+      c, 404, 'listing_not_found',
+      'Listing not found.',
+      'Check the listing ID and try again.'
+    );
+  }
+
+  return c.json(result.rows[0]);
+});
+
 listingsRouter.get('/', async (c) => {
   const parsedQuery = listQuerySchema.safeParse(c.req.query());
   if (!parsedQuery.success) {
