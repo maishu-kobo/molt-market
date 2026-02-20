@@ -85,6 +85,26 @@ listingsRouter.post('/', async (c) => {
       );
     }
 
+    // Rate limit: max 3 listings per agent per day
+    const DAILY_LISTING_LIMIT = 3;
+    const rateLimitResult = await client.query(
+      `SELECT COUNT(*) as count FROM listings 
+       WHERE agent_id = $1 AND created_at > NOW() - INTERVAL '24 hours'`,
+      [data.agent_id]
+    );
+    const dailyCount = parseInt(rateLimitResult.rows[0].count, 10);
+    if (dailyCount >= DAILY_LISTING_LIMIT) {
+      await client.query('ROLLBACK');
+      return errorResponse(
+        c,
+        429,
+        'rate_limit_exceeded',
+        `Daily listing limit reached. Maximum ${DAILY_LISTING_LIMIT} products per day.`,
+        'Wait 24 hours before creating more listings.',
+        { daily_limit: DAILY_LISTING_LIMIT, current_count: dailyCount }
+      );
+    }
+
     const insertResult = await client.query(
       `
         INSERT INTO listings (
