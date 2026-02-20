@@ -74,6 +74,24 @@ reviewsRouter.post('/', async (c) => {
       );
     }
 
+    // Rate limit: max 10 reviews per buyer per day (prevent review spam)
+    const DAILY_REVIEW_LIMIT = 10;
+    const rateLimitResult = await client.query(
+      `SELECT COUNT(*) as count FROM reviews 
+       WHERE buyer_id = $1 AND created_at > NOW() - INTERVAL '24 hours'`,
+      [buyer_id]
+    );
+    const dailyCount = parseInt(rateLimitResult.rows[0].count, 10);
+    if (dailyCount >= DAILY_REVIEW_LIMIT) {
+      await client.query('ROLLBACK');
+      return errorResponse(
+        c, 429, 'rate_limit_exceeded',
+        `Daily review limit reached. Maximum ${DAILY_REVIEW_LIMIT} reviews per day.`,
+        'Wait 24 hours before posting more reviews.',
+        { daily_limit: DAILY_REVIEW_LIMIT, current_count: dailyCount }
+      );
+    }
+
     // Insert review
     const reviewResult = await client.query(
       `INSERT INTO reviews (id, listing_id, buyer_id, rating, comment)
