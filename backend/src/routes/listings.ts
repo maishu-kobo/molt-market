@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { pool } from '../db/index.js';
 import { errorResponse } from '../middleware/error-response.js';
+import { agentAuthMiddleware, requireAgentMatch } from '../middleware/agent-auth.js';
 import { recordAuditLog } from '../services/audit-log.js';
 import { enqueueWebhookJobs } from '../services/webhooks.js';
 import { enqueueMoltbookSync } from '../services/moltbook-sync.js';
@@ -31,10 +32,17 @@ const listQuerySchema = z.object({
 
 export const listingsRouter = new Hono();
 
-listingsRouter.post('/', async (c) => {
+// POST requires agent wallet signature
+listingsRouter.post('/', agentAuthMiddleware, async (c) => {
+  // Get body from middleware cache or parse fresh
   let body: unknown;
   try {
-    body = await c.req.json();
+    const rawBody = c.get('rawBody');
+    if (rawBody) {
+      body = JSON.parse(rawBody);
+    } else {
+      body = await c.req.json();
+    }
   } catch {
     return errorResponse(
       c,
@@ -59,6 +67,19 @@ listingsRouter.post('/', async (c) => {
   }
 
   const data = parsed.data;
+  
+  // Verify the agent_id matches the verified agent from signature
+  const verifiedAgentId = c.get('verifiedAgentId');
+  if (!requireAgentMatch(verifiedAgentId, data.agent_id)) {
+    return errorResponse(
+      c,
+      403,
+      'agent_mismatch',
+      'You can only create listings for your own agent.',
+      'Ensure agent_id matches the signing agent.'
+    );
+  }
+
   if (!Number.isFinite(data.price_usdc) || data.price_usdc <= 0) {
     return errorResponse(
       c,
@@ -73,6 +94,7 @@ listingsRouter.post('/', async (c) => {
   try {
     await client.query('BEGIN');
 
+    // Agent already verified by middleware, but check existence
     const agentResult = await client.query('SELECT id FROM agents WHERE id = $1', [data.agent_id]);
     if (agentResult.rowCount === 0) {
       await client.query('ROLLBACK');

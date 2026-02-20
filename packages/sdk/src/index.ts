@@ -1,10 +1,3 @@
 export { OpenClawMarketplace } from './client.js';
-export type {
-  Agent,
-  Listing,
-  WalletBalance,
-  Purchase,
-  Review,
-  ListingsResponse,
-  MarketplaceConfig
-} from './types.js';
+export * from './types.js';
+export { signAgentRequest, createAgentAuthHeaders, type SignatureParams, type SignedRequest } from './signer.js';

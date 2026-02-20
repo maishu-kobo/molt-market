@@ -4,15 +4,17 @@ import { ethers } from 'ethers';
 import { pool } from '../db/index.js';
 import { errorResponse } from '../middleware/error-response.js';
 import { recordAuditLog } from '../services/audit-log.js';
-import { walletSigner } from '../services/wallet-signer.js';
 import { getUsdcBalance } from '../services/usdc.js';
 import { starAgent, unstarAgent, hasStarred, getTopAgents } from '../services/agent-stats.js';
 import { logger } from '../logger.js';
 
+// Agent registration schema
+// wallet_address is REQUIRED - agents must manage their own keys
+// This is Web3: the agent holds the private key, we only store the public address
 const agentSchema = z.object({
   owner_id: z.string().min(1),
   name: z.string().min(1),
-  wallet_address: z.string().regex(/^0x[a-fA-F0-9]{40}$/, 'Invalid Ethereum address').optional()
+  wallet_address: z.string().regex(/^0x[a-fA-F0-9]{40}$/, 'Invalid Ethereum address')
 });
 
 export const agentsRouter = new Hono();
@@ -51,22 +53,13 @@ agentsRouter.post('/', async (c) => {
   try {
     await client.query('BEGIN');
 
-    let address: string;
-    let kmsKeyId: string;
-
-    if (wallet_address) {
-      // User provided their own wallet address
-      address = ethers.getAddress(wallet_address); // Normalize to checksum address
-      kmsKeyId = 'external'; // No KMS management for external wallets
-      logger.info({ address }, 'Using user-provided wallet address');
-    } else {
-      // Generate a system-managed wallet
-      const generated = await walletSigner.generateWallet();
-      address = generated.address;
-      kmsKeyId = generated.kmsKeyId;
-    }
-
+    // Web3: Agent provides their own wallet address
+    // Server NEVER has access to private keys
+    const address = ethers.getAddress(wallet_address); // Normalize to checksum
+    const kmsKeyId = 'self-managed'; // Agent holds the key
     const did = `did:ethr:${address}`;
+
+    logger.info({ address, did }, 'Registering agent with self-managed wallet');
 
     const result = await client.query(
       `INSERT INTO agents (id, did, owner_id, name, wallet_address, kms_key_id)
