@@ -4,6 +4,7 @@ import { pool } from '../db/index.js';
 import { errorResponse } from '../middleware/error-response.js';
 import { recordAuditLog } from '../services/audit-log.js';
 import { enqueueWebhookJobs } from '../services/webhooks.js';
+import { enqueueMoltbookSync } from '../services/moltbook-sync.js';
 import { logger } from '../logger.js';
 
 const listingSchema = z.object({
@@ -132,6 +133,11 @@ listingsRouter.post('/', async (c) => {
     });
 
     await client.query('COMMIT');
+
+    // Enqueue Moltbook sync job (outside transaction, fire-and-forget)
+    await enqueueMoltbookSync(listing).catch((err) => {
+      logger.error({ err, listingId: listing.id }, 'Failed to enqueue Moltbook sync');
+    });
 
     return c.json(listing, 201);
   } catch (err: unknown) {

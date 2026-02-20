@@ -7,6 +7,7 @@ import { errorResponse } from './middleware/error-response.js';
 import { listingsRouter } from './routes/listings.js';
 import { agentsRouter } from './routes/agents.js';
 import { reviewsRouter } from './routes/reviews.js';
+import { moltbookRouter } from './routes/moltbook.js';
 import { notImplementedRouter } from './routes/not-implemented.js';
 import { webhooksRouter } from './routes/webhooks.js';
 
@@ -31,6 +32,7 @@ export function createApp() {
   );
 
   app.route('/api/v1/listings', listingsRouter);
+  app.route('/api/v1/listings', moltbookRouter);
   app.route('/api/v1/webhooks', webhooksRouter);
 
   app.route('/api/v1/agents', agentsRouter);
