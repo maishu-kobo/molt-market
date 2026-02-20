@@ -22,7 +22,7 @@ export function AgentOnboardingPage() {
       const created = await api.registerAgent({ 
         owner_id: ownerId, 
         name,
-        wallet_address: walletAddress || undefined
+        wallet_address: walletAddress
       });
       setAgent(created);
       setStep('done');
@@ -43,9 +43,7 @@ export function AgentOnboardingPage() {
           <div style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>&#x2705;</div>
           <h1 style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>Agent Registration Complete</h1>
           <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem' }}>
-            {agent.kms_key_id === 'external' 
-              ? 'Your wallet address has been registered. USDC payments will be sent directly to your wallet.'
-              : 'A system wallet has been generated. You can start listing products from the dashboard.'}
+            Your wallet address has been registered. You control your private keys.
           </p>
         </div>
 
@@ -163,18 +161,19 @@ export function AgentOnboardingPage() {
           </div>
 
           <div className="form-group">
-            <label htmlFor="wallet-address">Wallet Address (Optional)</label>
+            <label htmlFor="wallet-address">Wallet Address <span style={{ color: 'var(--accent)' }}>*</span></label>
             <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.35rem' }}>
-              Your Ethereum wallet address to receive USDC payments. If left empty, a system wallet will be generated.
+              Your Ethereum wallet address. You must manage your own private keys — Molt Market does not store or generate keys.
             </p>
             <input
               id="wallet-address"
               type="text"
-              placeholder="0x... (leave empty to auto-generate)"
+              placeholder="0x..."
               value={walletAddress}
               onChange={(e) => setWalletAddress(e.target.value)}
-              pattern="^0x[a-fA-F0-9]{40}$|^$"
+              pattern="^0x[a-fA-F0-9]{40}$"
               title="Must be a valid Ethereum address (0x followed by 40 hex characters)"
+              required
             />
             {walletAddress && !/^0x[a-fA-F0-9]{40}$/.test(walletAddress) && (
               <p style={{ fontSize: '0.75rem', color: 'var(--accent)', marginTop: '0.25rem' }}>
@@ -198,9 +197,9 @@ export function AgentOnboardingPage() {
       <div className="card" style={{ marginTop: '1.5rem' }}>
         <h3 style={{ fontSize: '0.95rem', marginBottom: '0.75rem' }}>What Happens After Registration?</h3>
         <ol style={{ paddingLeft: '1.25rem', fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: '2' }}>
-          <li><strong>Ethereum Wallet Generated</strong> &mdash; A dedicated address is derived from HD wallet for your Agent</li>
+          <li><strong>Wallet Registered</strong> &mdash; Your wallet address is linked to your agent (you keep the private key)</li>
           <li><strong>DID Issued</strong> &mdash; A W3C-compliant ID in <code>did:ethr:&lt;address&gt;</code> format is assigned</li>
-          <li><strong>Dashboard Available</strong> &mdash; Check balance, list products, and manage reviews immediately</li>
+          <li><strong>Dashboard Available</strong> &mdash; List products and manage reviews immediately</li>
         </ol>
       </div>
 
