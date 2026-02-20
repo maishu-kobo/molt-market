@@ -8,21 +8,61 @@ import { getUsdcBalance } from '../services/usdc.js';
 import { starAgent, unstarAgent, hasStarred, getTopAgents } from '../services/agent-stats.js';
 import { logger } from '../logger.js';
 
+import { createHash } from 'crypto';
+import { readFileSync } from 'fs';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
+
+// Compute terms hash from actual TERMS.md file
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const TERMS_PATH = join(__dirname, '../../../TERMS.md');
+let TERMS_HASH: string;
+let TERMS_VERSION: string;
+let TERMS_MESSAGE: string;
+
+try {
+  const termsContent = readFileSync(TERMS_PATH, 'utf-8');
+  TERMS_HASH = createHash('sha256').update(termsContent).digest('hex');
+  // Extract version from file (Last Updated line)
+  const versionMatch = termsContent.match(/Last Updated: (\w+ \d{4})/);
+  TERMS_VERSION = versionMatch ? versionMatch[1] : 'current';
+  TERMS_MESSAGE = `I agree to Molt Market Terms v${TERMS_VERSION} hash:${TERMS_HASH}`;
+  console.log(`[Terms] Loaded TERMS.md - Version: ${TERMS_VERSION}, Hash: ${TERMS_HASH.slice(0, 16)}...`);
+} catch (err) {
+  console.error('[Terms] Failed to load TERMS.md:', err);
+  TERMS_HASH = 'unknown';
+  TERMS_VERSION = 'unknown';
+  TERMS_MESSAGE = 'TERMS_NOT_LOADED';
+}
+
 // Agent registration schema
 // wallet_address is REQUIRED - all agents must have a wallet
-// Agent manages their own keys (Web3 style)
+// terms_signature is REQUIRED - agent must sign agreement to terms
 const agentSchema = z.object({
   owner_id: z.string().min(1),
   name: z.string().min(1),
-  wallet_address: z.string().regex(/^0x[a-fA-F0-9]{40}$/, 'Invalid Ethereum address')
+  wallet_address: z.string().regex(/^0x[a-fA-F0-9]{40}$/, 'Invalid Ethereum address'),
+  terms_signature: z.string().min(1) // Signature of TERMS_MESSAGE
 });
 
 export const agentsRouter = new Hono();
 
 /**
+ * GET /api/v1/agents/terms
+ * Get the current terms message that agents must sign to register.
+ */
+agentsRouter.get('/terms', (c) => {
+  return c.json({
+    version: TERMS_VERSION,
+    hash: TERMS_HASH,
+    message: TERMS_MESSAGE,
+    terms_url: 'https://github.com/maishu-kobo/molt-market/blob/main/TERMS.md'
+  });
+});
+
+/**
  * POST /api/v1/agents
- * Register a new agent. Generates a DID (did:ethr:<address>) and
- * an Ethereum wallet address using the WalletSigner abstraction.
+ * Register a new agent with wallet address and signed terms agreement.
  */
 agentsRouter.post('/', async (c) => {
   let body: unknown;
@@ -47,14 +87,32 @@ agentsRouter.post('/', async (c) => {
     );
   }
 
-  const { owner_id, name, wallet_address } = parsed.data;
+  const { owner_id, name, wallet_address, terms_signature } = parsed.data;
+
+  // Verify terms signature
+  const address = ethers.getAddress(wallet_address); // Normalize to checksum
+  try {
+    const recoveredAddress = ethers.verifyMessage(TERMS_MESSAGE, terms_signature);
+    if (recoveredAddress.toLowerCase() !== address.toLowerCase()) {
+      return errorResponse(
+        c, 401, 'invalid_terms_signature',
+        'Terms signature does not match wallet address.',
+        `Sign this message with your wallet: "${TERMS_MESSAGE}"`
+      );
+    }
+  } catch (err) {
+    logger.error({ err }, 'Failed to verify terms signature');
+    return errorResponse(
+      c, 401, 'invalid_terms_signature',
+      'Invalid terms signature format.',
+      `Sign this message with your wallet: "${TERMS_MESSAGE}"`
+    );
+  }
 
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
 
-    // Wallet address required - agent manages their own keys
-    const address = ethers.getAddress(wallet_address); // Normalize to checksum
     const did = `did:ethr:${address}`;
     const kmsKeyId = 'self-managed';
     logger.info({ address, did }, 'Registering agent with self-managed wallet');

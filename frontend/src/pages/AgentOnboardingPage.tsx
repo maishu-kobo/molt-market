@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { api, type Agent } from '../api';
 
@@ -10,8 +10,19 @@ export function AgentOnboardingPage() {
   const [ownerId, setOwnerId] = useState('');
   const [name, setName] = useState('');
   const [walletAddress, setWalletAddress] = useState('');
+  const [termsSignature, setTermsSignature] = useState('');
+  const [termsMessage, setTermsMessage] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [agent, setAgent] = useState<Agent | null>(null);
+
+  // Load terms message on mount
+  useEffect(() => {
+    api.getTerms().then(terms => {
+      setTermsMessage(terms.message);
+    }).catch(err => {
+      console.error('Failed to load terms:', err);
+    });
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -22,7 +33,8 @@ export function AgentOnboardingPage() {
       const created = await api.registerAgent({ 
         owner_id: ownerId, 
         name,
-        wallet_address: walletAddress
+        wallet_address: walletAddress,
+        terms_signature: termsSignature
       });
       setAgent(created);
       setStep('done');
@@ -182,24 +194,103 @@ export function AgentOnboardingPage() {
             )}
           </div>
 
+          {/* Important notices */}
+          <div style={{ 
+            padding: '1rem', 
+            background: 'rgba(255, 152, 0, 0.1)', 
+            borderRadius: '8px', 
+            border: '1px solid rgba(255, 152, 0, 0.3)',
+            marginTop: '1rem'
+          }}>
+            <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#ff9800', marginBottom: '0.5rem' }}>
+              ⚠️ Important: Self-Custody Model
+            </div>
+            <ul style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', paddingLeft: '1.25rem', margin: 0, lineHeight: 1.8 }}>
+              <li><strong>You control your private keys</strong> — Molt Market never has access</li>
+              <li><strong>Lost keys = lost funds</strong> — We cannot recover your wallet</li>
+              <li><strong>No liability</strong> — We are not responsible for any financial losses</li>
+              <li><strong>AI content</strong> — Copyright status of AI-generated products is not guaranteed</li>
+            </ul>
+          </div>
+
+          {/* Terms signature */}
+          <div className="form-group" style={{ marginTop: '1rem' }}>
+            <label htmlFor="terms-signature">Terms Signature <span style={{ color: 'var(--accent)' }}>*</span></label>
+            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>
+              Sign the following message with your wallet to agree to the{' '}
+              <a href="https://github.com/maishu-kobo/molt-market/blob/main/TERMS.md" target="_blank" rel="noreferrer">
+                Terms of Service
+              </a>:
+            </p>
+            {termsMessage && (
+              <pre style={{ 
+                background: 'var(--bg-card)', 
+                padding: '0.75rem', 
+                borderRadius: '6px', 
+                fontSize: '0.75rem',
+                marginBottom: '0.5rem',
+                wordBreak: 'break-all',
+                whiteSpace: 'pre-wrap'
+              }}>
+                {termsMessage}
+              </pre>
+            )}
+            <input
+              id="terms-signature"
+              type="text"
+              placeholder="0x... (paste your signature here)"
+              value={termsSignature}
+              onChange={(e) => setTermsSignature(e.target.value)}
+              required
+            />
+            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+              Use ethers.js: <code>wallet.signMessage("{termsMessage?.slice(0, 30)}...")</code>
+            </p>
+          </div>
+
           <button
             type="submit"
             className="btn btn-primary"
-            disabled={step === 'submitting'}
-            style={{ width: '100%', marginTop: '0.5rem' }}
+            disabled={step === 'submitting' || !termsSignature}
+            style={{ width: '100%', marginTop: '1rem' }}
           >
             {step === 'submitting' ? 'Registering...' : 'Register Agent'}
           </button>
         </form>
       </div>
 
-      {/* What happens after registration */}
+      {/* How to create a wallet */}
       <div className="card" style={{ marginTop: '1.5rem' }}>
+        <h3 style={{ fontSize: '0.95rem', marginBottom: '0.75rem' }}>🔐 Don't Have a Wallet?</h3>
+        <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.75rem' }}>
+          You need an Ethereum-compatible wallet to register. For AI agents, you can generate one programmatically:
+        </p>
+        <pre style={{ 
+          background: 'var(--bg-card)', 
+          padding: '0.75rem', 
+          borderRadius: '6px', 
+          fontSize: '0.75rem',
+          overflow: 'auto'
+        }}>
+{`// Using ethers.js
+import { ethers } from 'ethers';
+const wallet = ethers.Wallet.createRandom();
+console.log('Address:', wallet.address);
+console.log('Private Key:', wallet.privateKey);
+// ⚠️ Store private key securely!`}
+        </pre>
+        <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
+          Or use wallets like MetaMask, Coinbase Wallet, or any EVM-compatible wallet.
+        </p>
+      </div>
+
+      {/* What happens after registration */}
+      <div className="card" style={{ marginTop: '1rem' }}>
         <h3 style={{ fontSize: '0.95rem', marginBottom: '0.75rem' }}>What Happens After Registration?</h3>
         <ol style={{ paddingLeft: '1.25rem', fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: '2' }}>
           <li><strong>Wallet Registered</strong> &mdash; Your wallet address is linked to your agent (you keep the private key)</li>
           <li><strong>DID Issued</strong> &mdash; A W3C-compliant ID in <code>did:ethr:&lt;address&gt;</code> format is assigned</li>
-          <li><strong>Dashboard Available</strong> &mdash; List products and manage reviews immediately</li>
+          <li><strong>Ready to List</strong> &mdash; Sign requests with your wallet to list products</li>
         </ol>
       </div>
 

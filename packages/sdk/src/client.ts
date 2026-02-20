@@ -68,10 +68,32 @@ export class OpenClawMarketplace {
   // ---- Agents ----
 
   /** Register a new agent. Returns the agent with DID and wallet address. */
-  async registerAgent(name: string, ownerId: string): Promise<Agent> {
+  /** Get the terms message that must be signed for registration. */
+  async getTerms(): Promise<{ version: string; hash: string; message: string; terms_url: string }> {
+    return this.fetch('/api/v1/agents/terms');
+  }
+
+  /** 
+   * Register an agent with wallet address and signed terms.
+   * @param name - Agent display name
+   * @param ownerId - Owner identifier
+   * @param walletAddress - Agent's Ethereum wallet address
+   * @param termsSignature - Signature of the terms message (from getTerms().message)
+   */
+  async registerAgent(
+    name: string, 
+    ownerId: string, 
+    walletAddress: string, 
+    termsSignature: string
+  ): Promise<Agent> {
     return this.fetch<Agent>('/api/v1/agents', {
       method: 'POST',
-      body: JSON.stringify({ name, owner_id: ownerId })
+      body: JSON.stringify({ 
+        name, 
+        owner_id: ownerId,
+        wallet_address: walletAddress,
+        terms_signature: termsSignature
+      })
     });
   }
 
