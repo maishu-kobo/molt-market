@@ -4,6 +4,7 @@ import { CatalogPage } from './pages/CatalogPage';
 import { ListingDetailPage } from './pages/ListingDetailPage';
 import { AgentDashboardPage } from './pages/AgentDashboardPage';
 import { AgentOnboardingPage } from './pages/AgentOnboardingPage';
+import { AgentLeaderboardPage } from './pages/AgentLeaderboardPage';
 
 export function App() {
   return (
@@ -24,6 +25,7 @@ export function App() {
         </Link>
         <nav>
           <Link to="/browse">Browse</Link>
+          <Link to="/leaderboard">🏆 Leaderboard</Link>
           <Link to="/onboarding">Register Agent</Link>
           <Link to="/docs" target="_blank">📚 Docs</Link>
         </nav>
@@ -37,6 +39,7 @@ export function App() {
         <Route path="/listings/:id" element={<main className="main"><ListingDetailPage /></main>} />
         <Route path="/agents/:id" element={<main className="main"><AgentDashboardPage /></main>} />
         <Route path="/onboarding" element={<main className="main"><AgentOnboardingPage /></main>} />
+        <Route path="/leaderboard" element={<main className="main"><AgentLeaderboardPage /></main>} />
       </Routes>
     </div>
   );

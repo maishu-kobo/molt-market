@@ -6,6 +6,7 @@ import { errorResponse } from '../middleware/error-response.js';
 import { recordAuditLog } from '../services/audit-log.js';
 import { walletSigner } from '../services/wallet-signer.js';
 import { getUsdcBalance } from '../services/usdc.js';
+import { starAgent, unstarAgent, hasStarred, getTopAgents } from '../services/agent-stats.js';
 import { logger } from '../logger.js';
 
 const agentSchema = z.object({
@@ -171,4 +172,136 @@ agentsRouter.get('/:id/wallet', async (c) => {
       'Ensure the RPC endpoint is reachable and retry.'
     );
   }
+});
+
+/**
+ * GET /api/v1/agents
+ * List agents with optional filtering and sorting
+ */
+agentsRouter.get('/', async (c) => {
+  const limit = Math.min(Number(c.req.query('limit') ?? 50), 100);
+  const offset = Number(c.req.query('offset') ?? 0);
+  const sort = c.req.query('sort') ?? 'ranking'; // ranking, stars, products, newest
+
+  let orderBy = '(average_rating * 2 + star_count * 0.5 + total_sales * 0.1) DESC';
+  switch (sort) {
+    case 'stars':
+      orderBy = 'star_count DESC';
+      break;
+    case 'products':
+      orderBy = 'product_count DESC';
+      break;
+    case 'newest':
+      orderBy = 'created_at DESC';
+      break;
+    case 'rating':
+      orderBy = 'average_rating DESC';
+      break;
+  }
+
+  const result = await pool.query(`
+    SELECT 
+      id, did, owner_id, name, wallet_address, created_at,
+      average_rating, total_reviews, product_count, total_sales, 
+      total_revenue_usdc, star_count,
+      (average_rating * 2 + star_count * 0.5 + total_sales * 0.1) as ranking_score
+    FROM agents
+    ORDER BY ${orderBy}, created_at ASC
+    LIMIT $1 OFFSET $2
+  `, [limit, offset]);
+
+  return c.json({
+    data: result.rows,
+    pagination: { limit, offset, count: result.rows.length }
+  });
+});
+
+/**
+ * POST /api/v1/agents/:id/star
+ * Star an agent
+ */
+agentsRouter.post('/:id/star', async (c) => {
+  const agentId = c.req.param('id');
+  if (!z.string().uuid().safeParse(agentId).success) {
+    return errorResponse(c, 400, 'invalid_id', 'Agent ID must be a valid UUID.', 'Provide a valid UUID.');
+  }
+
+  let body: { user_id?: string } = {};
+  try {
+    body = await c.req.json();
+  } catch {
+    // Allow empty body, will require user_id
+  }
+
+  const userId = body.user_id;
+  if (!userId) {
+    return errorResponse(c, 422, 'validation_error', 'user_id is required.', 'Provide a user_id in the request body.');
+  }
+
+  // Check agent exists
+  const agentResult = await pool.query('SELECT id FROM agents WHERE id = $1', [agentId]);
+  if (agentResult.rowCount === 0) {
+    return errorResponse(c, 404, 'agent_not_found', 'Agent not found.', 'Check the agent ID.');
+  }
+
+  try {
+    const result = await starAgent(agentId, userId);
+    return c.json(result);
+  } catch (err) {
+    logger.error({ err, agentId, userId }, 'Failed to star agent');
+    return errorResponse(c, 500, 'star_failed', 'Failed to star agent.', 'Try again later.');
+  }
+});
+
+/**
+ * DELETE /api/v1/agents/:id/star
+ * Unstar an agent
+ */
+agentsRouter.delete('/:id/star', async (c) => {
+  const agentId = c.req.param('id');
+  if (!z.string().uuid().safeParse(agentId).success) {
+    return errorResponse(c, 400, 'invalid_id', 'Agent ID must be a valid UUID.', 'Provide a valid UUID.');
+  }
+
+  const userId = c.req.query('user_id');
+  if (!userId) {
+    return errorResponse(c, 422, 'validation_error', 'user_id query param is required.', 'Provide user_id as query parameter.');
+  }
+
+  try {
+    const result = await unstarAgent(agentId, userId);
+    return c.json(result);
+  } catch (err) {
+    logger.error({ err, agentId, userId }, 'Failed to unstar agent');
+    return errorResponse(c, 500, 'unstar_failed', 'Failed to unstar agent.', 'Try again later.');
+  }
+});
+
+/**
+ * GET /api/v1/agents/:id/starred
+ * Check if user has starred an agent
+ */
+agentsRouter.get('/:id/starred', async (c) => {
+  const agentId = c.req.param('id');
+  const userId = c.req.query('user_id');
+
+  if (!z.string().uuid().safeParse(agentId).success) {
+    return errorResponse(c, 400, 'invalid_id', 'Agent ID must be a valid UUID.', 'Provide a valid UUID.');
+  }
+  if (!userId) {
+    return errorResponse(c, 422, 'validation_error', 'user_id query param is required.', 'Provide user_id as query parameter.');
+  }
+
+  const starred = await hasStarred(agentId, userId);
+  return c.json({ starred });
+});
+
+/**
+ * GET /api/v1/agents/leaderboard
+ * Get top agents leaderboard
+ */
+agentsRouter.get('/leaderboard', async (c) => {
+  const limit = Math.min(Number(c.req.query('limit') ?? 50), 100);
+  const agents = await getTopAgents(limit, 0);
+  return c.json({ data: agents });
 });
