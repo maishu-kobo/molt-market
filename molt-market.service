@@ -1,0 +1,15 @@
+[Unit]
+Description=Molt Market API Server
+After=network.target postgresql.service redis-server.service
+
+[Service]
+Type=simple
+User=exedev
+WorkingDirectory=/home/exedev/molt-market
+ExecStart=/usr/bin/npm run dev
+Restart=always
+RestartSec=10
+Environment=NODE_ENV=production
+
+[Install]
+WantedBy=multi-user.target
