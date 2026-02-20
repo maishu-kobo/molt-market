@@ -6,6 +6,7 @@ import { requestLogger } from './middleware/request-logger.js';
 import { errorResponse } from './middleware/error-response.js';
 import { listingsRouter } from './routes/listings.js';
 import { agentsRouter } from './routes/agents.js';
+import { reviewsRouter } from './routes/reviews.js';
 import { notImplementedRouter } from './routes/not-implemented.js';
 import { webhooksRouter } from './routes/webhooks.js';
 
@@ -34,7 +35,7 @@ export function createApp() {
 
   app.route('/api/v1/agents', agentsRouter);
   app.route('/api/v1/purchases', notImplementedRouter);
-  app.route('/api/v1/listings/:id/reviews', notImplementedRouter);
+  app.route('/api/v1/listings/:id/reviews', reviewsRouter);
 
   app.notFound((c) =>
     errorResponse(
