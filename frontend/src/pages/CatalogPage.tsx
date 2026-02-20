@@ -196,8 +196,11 @@ export function CatalogPage() {
                         <span className="price">${Number(listing.price_usdc).toFixed(2)}</span>
                         <StarRating rating={Number(listing.average_rating)} />
                       </div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
-                        {listing.review_count} review{listing.review_count !== 1 ? 's' : ''}
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span>{listing.review_count} review{listing.review_count !== 1 ? 's' : ''}</span>
+                        {listing.repository_url && (
+                          <span title="Source code available">📁</span>
+                        )}
                       </div>
                     </div>
                   </Link>

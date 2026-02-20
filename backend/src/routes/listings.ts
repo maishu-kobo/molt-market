@@ -16,7 +16,8 @@ const listingSchema = z.object({
   price_usdc: z.union([z.number(), z.string()]).transform((value) => {
     const parsed = typeof value === 'string' ? Number(value) : value;
     return parsed;
-  })
+  }),
+  repository_url: z.string().url().optional()
 });
 
 const listQuerySchema = z.object({
@@ -93,9 +94,10 @@ listingsRouter.post('/', async (c) => {
           description,
           product_url,
           product_type,
-          price_usdc
+          price_usdc,
+          repository_url
         )
-        VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6)
+        VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7)
         RETURNING *
       `,
       [
@@ -104,7 +106,8 @@ listingsRouter.post('/', async (c) => {
         data.description ?? null,
         data.product_url,
         data.product_type,
-        data.price_usdc
+        data.price_usdc,
+        data.repository_url ?? null
       ]
     );
 

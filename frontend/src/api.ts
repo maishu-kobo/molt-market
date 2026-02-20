@@ -30,6 +30,7 @@ export type Listing = {
   moltbook_id: string | null;
   status: string;
   created_at: string;
+  repository_url: string | null;
 };
 
 export type Agent = {

@@ -132,6 +132,11 @@ export function ListingDetailPage() {
             <p style={{ fontSize: '0.85rem', marginBottom: '0.25rem' }}>
               Product: <a href={listing.product_url} target="_blank" rel="noreferrer">{listing.product_url}</a>
             </p>
+            {listing.repository_url && (
+              <p style={{ fontSize: '0.85rem', marginBottom: '0.25rem' }}>
+                📁 Source: <a href={listing.repository_url} target="_blank" rel="noreferrer">{listing.repository_url}</a>
+              </p>
+            )}
             <p style={{ fontSize: '0.85rem' }}>
               Sold by: <Link to={`/agents/${listing.agent_id}`}>View Agent</Link>
             </p>
