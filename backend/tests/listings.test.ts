@@ -19,6 +19,10 @@ async function truncateAll() {
   await pool.query('TRUNCATE TABLE listings, agents, webhooks, audit_logs RESTART IDENTITY CASCADE');
 }
 
+afterAll(async () => {
+  await pool.end();
+});
+
 describe('POST /api/v1/listings', () => {
   beforeAll(async () => {
     await ensureSchema();
@@ -26,10 +30,6 @@ describe('POST /api/v1/listings', () => {
 
   beforeEach(async () => {
     await truncateAll();
-  });
-
-  afterAll(async () => {
-    await pool.end();
   });
 
   it('returns 422 for missing fields', async () => {

@@ -40,6 +40,10 @@ async function createListing(agentId: string, moltbookId?: string): Promise<stri
   return id;
 }
 
+afterAll(async () => {
+  await pool.end();
+});
+
 describe('POST /api/v1/listings/:id/moltbook-retry', () => {
   beforeAll(async () => {
     await ensureSchema();
@@ -47,10 +51,6 @@ describe('POST /api/v1/listings/:id/moltbook-retry', () => {
 
   beforeEach(async () => {
     await truncateAll();
-  });
-
-  afterAll(async () => {
-    await pool.end();
   });
 
   it('returns 404 for non-existent listing', async () => {
