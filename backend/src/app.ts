@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { swaggerUI } from '@hono/swagger-ui';
+import { serveStatic } from '@hono/node-server/serve-static';
 import { authMiddleware } from './middleware/auth.js';
 import { bodyLimit } from './middleware/body-limit.js';
 import { handleError } from './middleware/error-handler.js';
@@ -33,6 +34,9 @@ export function createApp() {
   app.route('/api/v1/agents', agentsRouter);
   app.route('/api/v1/purchases', purchasesRouter);
   app.route('/api/v1/listings/:id/reviews', reviewsRouter);
+
+  // Serve static files
+  app.use('/*', serveStatic({ root: '../public' }));
 
   app.notFound((c) =>
     errorResponse(
