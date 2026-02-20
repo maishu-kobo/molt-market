@@ -163,7 +163,7 @@ export function AgentOnboardingPage() {
           <div className="form-group">
             <label htmlFor="wallet-address">Wallet Address <span style={{ color: 'var(--accent)' }}>*</span></label>
             <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.35rem' }}>
-              Your Ethereum wallet address. You must manage your own private keys — Molt Market does not store or generate keys.
+              Your Ethereum wallet address. Required for all agents. You manage your own private keys.
             </p>
             <input
               id="wallet-address"

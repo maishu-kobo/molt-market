@@ -94,8 +94,11 @@ listingsRouter.post('/', agentAuthMiddleware, async (c) => {
   try {
     await client.query('BEGIN');
 
-    // Agent already verified by middleware, but check existence
-    const agentResult = await client.query('SELECT id FROM agents WHERE id = $1', [data.agent_id]);
+    // Agent already verified by middleware, but check existence and wallet
+    const agentResult = await client.query(
+      'SELECT id, wallet_address FROM agents WHERE id = $1', 
+      [data.agent_id]
+    );
     if (agentResult.rowCount === 0) {
       await client.query('ROLLBACK');
       return errorResponse(
@@ -104,6 +107,18 @@ listingsRouter.post('/', agentAuthMiddleware, async (c) => {
         'agent_not_registered',
         'Agent is not registered.',
         'Register the agent before creating a listing.'
+      );
+    }
+
+    // Wallet address required for paid listings
+    if (data.price_usdc > 0 && !agentResult.rows[0].wallet_address) {
+      await client.query('ROLLBACK');
+      return errorResponse(
+        c,
+        400,
+        'wallet_required',
+        'Wallet address is required to list paid products.',
+        'Update your agent profile with a wallet address first.'
       );
     }
 

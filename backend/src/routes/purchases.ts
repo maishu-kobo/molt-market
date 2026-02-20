@@ -18,7 +18,32 @@ import { logger } from '../logger.js';
 // - All transactions signed client-side by agents
 // ============================================
 
-const PAYMENTS_DISABLED = true;
+// Allowed testnet chain IDs
+const ALLOWED_TESTNETS = [
+  84532,  // Base Sepolia
+  11155111, // Ethereum Sepolia  
+  31337,  // Anvil/Hardhat local
+];
+
+// Check if we're on a testnet at startup
+let isTestnet = false;
+let currentChainId = 0;
+
+async function checkNetwork() {
+  try {
+    const { ethers } = await import('ethers');
+    const rpcUrl = process.env.RPC_URL ?? 'http://localhost:8545';
+    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    const network = await provider.getNetwork();
+    currentChainId = Number(network.chainId);
+    isTestnet = ALLOWED_TESTNETS.includes(currentChainId);
+    console.log(`[Payments] Chain ID: ${currentChainId}, Testnet: ${isTestnet}`);
+  } catch (err) {
+    console.error('[Payments] Failed to check network:', err);
+    isTestnet = false;
+  }
+}
+checkNetwork();
 
 const purchaseSchema = z.object({
   listing_id: z.string().uuid(),

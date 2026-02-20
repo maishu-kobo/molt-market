@@ -9,8 +9,8 @@ import { starAgent, unstarAgent, hasStarred, getTopAgents } from '../services/ag
 import { logger } from '../logger.js';
 
 // Agent registration schema
-// wallet_address is REQUIRED - agents must manage their own keys
-// This is Web3: the agent holds the private key, we only store the public address
+// wallet_address is REQUIRED - all agents must have a wallet
+// Agent manages their own keys (Web3 style)
 const agentSchema = z.object({
   owner_id: z.string().min(1),
   name: z.string().min(1),
@@ -53,12 +53,10 @@ agentsRouter.post('/', async (c) => {
   try {
     await client.query('BEGIN');
 
-    // Web3: Agent provides their own wallet address
-    // Server NEVER has access to private keys
+    // Wallet address required - agent manages their own keys
     const address = ethers.getAddress(wallet_address); // Normalize to checksum
-    const kmsKeyId = 'self-managed'; // Agent holds the key
     const did = `did:ethr:${address}`;
-
+    const kmsKeyId = 'self-managed';
     logger.info({ address, did }, 'Registering agent with self-managed wallet');
 
     const result = await client.query(

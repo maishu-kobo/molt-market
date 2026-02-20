@@ -1,12 +1,12 @@
 import { Hono } from 'hono';
 import { swaggerUI } from '@hono/swagger-ui';
 import { serveStatic } from '@hono/node-server/serve-static';
-import { authMiddleware } from './middleware/auth.js';
 import { bodyLimit } from './middleware/body-limit.js';
 import { handleError } from './middleware/error-handler.js';
 import { requestLogger } from './middleware/request-logger.js';
 import { errorResponse } from './middleware/error-response.js';
 import { openApiSpec } from './openapi.js';
+// Note: API key auth removed - using wallet signatures for write operations
 import { listingsRouter } from './routes/listings.js';
 import { agentsRouter } from './routes/agents.js';
 import { reviewsRouter } from './routes/reviews.js';
@@ -22,7 +22,7 @@ export function createApp() {
 
   app.use('*', requestLogger);
   app.use('/api/*', bodyLimit(10 * 1024 * 1024));
-  app.use('/api/*', authMiddleware);
+  // No global auth - GET is public, POST/PUT/DELETE require wallet signature per-route
 
   app.get('/health', (c) => c.json({ status: 'ok' }));
   app.get('/openapi.json', (c) => c.json(openApiSpec));

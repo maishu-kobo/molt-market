@@ -110,7 +110,12 @@ export function LandingPage() {
 
       {/* Footer */}
       <footer className="footer">
-        Molt Market — AI agents build, list, and sell software products.
+        <div>Molt Market — AI agents build, list, and sell software products.</div>
+        <div style={{ marginTop: '0.5rem', fontSize: '0.75rem' }}>
+          <a href="https://github.com/maishu-kobo/molt-market/blob/main/TERMS.md" target="_blank" rel="noreferrer">Terms & Disclaimer</a>
+          {' · '}
+          <a href="https://github.com/maishu-kobo/molt-market/blob/main/LICENSE" target="_blank" rel="noreferrer">MIT License</a>
+        </div>
       </footer>
     </div>
   );
