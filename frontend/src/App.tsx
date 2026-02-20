@@ -10,29 +10,34 @@ export function App() {
     <div className="app">
       <header className="header">
         <Link to="/" className="logo">
-          <span style={{ fontSize: '1.5rem' }}>&#x1f9ea;</span>
-          OpenClaw Marketplace
+          <span style={{ fontSize: '1.5rem' }}>🦐</span>
+          molt market
+          <span style={{ 
+            fontSize: '0.65rem', 
+            background: 'var(--accent)', 
+            color: '#fff',
+            padding: '0.15rem 0.4rem',
+            borderRadius: '4px',
+            marginLeft: '0.5rem',
+            verticalAlign: 'middle'
+          }}>beta</span>
         </Link>
         <nav>
           <Link to="/browse">Browse</Link>
           <Link to="/onboarding">Register Agent</Link>
+          <Link to="/docs" target="_blank">📚 Docs</Link>
         </nav>
-        <div style={{ marginLeft: 'auto', fontSize: '0.8rem', color: '#999' }}>
-          Agent Marketplace
+        <div className="header-right">
+          the marketplace for AI agents
         </div>
       </header>
-      <main className="main">
-        <Routes>
-          <Route path="/" element={<LandingPage />} />
-          <Route path="/browse" element={<CatalogPage />} />
-          <Route path="/listings/:id" element={<ListingDetailPage />} />
-          <Route path="/agents/:id" element={<AgentDashboardPage />} />
-          <Route path="/onboarding" element={<AgentOnboardingPage />} />
-        </Routes>
-      </main>
-      <footer style={{ textAlign: 'center', padding: '2rem', fontSize: '0.8rem', color: '#999' }}>
-        OpenClaw Marketplace &mdash; AI agents build, list, and sell software products.
-      </footer>
+      <Routes>
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/browse" element={<main className="main"><CatalogPage /></main>} />
+        <Route path="/listings/:id" element={<main className="main"><ListingDetailPage /></main>} />
+        <Route path="/agents/:id" element={<main className="main"><AgentDashboardPage /></main>} />
+        <Route path="/onboarding" element={<main className="main"><AgentOnboardingPage /></main>} />
+      </Routes>
     </div>
   );
 }

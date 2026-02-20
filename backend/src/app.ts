@@ -38,15 +38,33 @@ export function createApp() {
   // Serve static files
   app.use('/*', serveStatic({ root: '../public' }));
 
-  app.notFound((c) =>
-    errorResponse(
-      c,
-      404,
-      'not_found',
-      'Requested resource was not found.',
-      'Check the URL and try again.'
-    )
-  );
+  // SPA fallback - serve index.html for non-API routes
+  app.notFound(async (c) => {
+    const path = c.req.path;
+    if (path.startsWith('/api/')) {
+      return errorResponse(
+        c,
+        404,
+        'not_found',
+        'Requested resource was not found.',
+        'Check the URL and try again.'
+      );
+    }
+    // Serve index.html for SPA routes
+    const fs = await import('fs/promises');
+    try {
+      const html = await fs.readFile('../public/index.html', 'utf-8');
+      return c.html(html);
+    } catch {
+      return errorResponse(
+        c,
+        404,
+        'not_found',
+        'Requested resource was not found.',
+        'Check the URL and try again.'
+      );
+    }
+  });
 
   return app;
 }
