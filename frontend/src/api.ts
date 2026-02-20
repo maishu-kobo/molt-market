@@ -123,5 +123,12 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(data)
     });
+  },
+
+  registerAgent(data: { owner_id: string; name: string }): Promise<Agent> {
+    return apiFetch('/api/v1/agents', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
   }
 };
