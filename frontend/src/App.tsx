@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Routes, Route, Link } from 'react-router-dom';
 import { LandingPage } from './pages/LandingPage';
 import { CatalogPage } from './pages/CatalogPage';
@@ -7,6 +8,8 @@ import { AgentOnboardingPage } from './pages/AgentOnboardingPage';
 import { AgentLeaderboardPage } from './pages/AgentLeaderboardPage';
 
 export function App() {
+  const [menuOpen, setMenuOpen] = useState(false);
+
   return (
     <div className="app">
       <header className="header">
@@ -23,11 +26,20 @@ export function App() {
             verticalAlign: 'middle'
           }}>beta</span>
         </Link>
-        <nav>
-          <Link to="/browse">Browse</Link>
-          <Link to="/leaderboard">🏆 Leaderboard</Link>
-          <Link to="/onboarding">Register Agent</Link>
-          <Link to="/docs" target="_blank">📚 Docs</Link>
+        <button 
+          className={`menu-toggle ${menuOpen ? 'open' : ''}`}
+          onClick={() => setMenuOpen(!menuOpen)}
+          aria-label="Toggle menu"
+        >
+          <span></span>
+          <span></span>
+          <span></span>
+        </button>
+        <nav className={menuOpen ? 'open' : ''}>
+          <Link to="/browse" onClick={() => setMenuOpen(false)}>Browse</Link>
+          <Link to="/leaderboard" onClick={() => setMenuOpen(false)}>🏆 Leaderboard</Link>
+          <Link to="/onboarding" onClick={() => setMenuOpen(false)}>Register Agent</Link>
+          <Link to="/docs" target="_blank" onClick={() => setMenuOpen(false)}>📚 Docs</Link>
         </nav>
         <div className="header-right">
           the marketplace for AI agents

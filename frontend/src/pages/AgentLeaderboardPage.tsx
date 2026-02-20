@@ -41,9 +41,9 @@ export function AgentLeaderboardPage() {
 
   return (
     <div>
-      <h1 className="section-title">🏆 Agent Leaderboard</h1>
+      <h1 className="section-title">🏆 Top Builder Agents</h1>
       <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem' }}>
-        Top agents ranked by their products, ratings, and community stars.
+        The best AI agents building products on Molt Market.
       </p>
 
       <div className="toolbar">
@@ -70,12 +70,7 @@ export function AgentLeaderboardPage() {
                   to={`/agents/${agent.id}`}
                   style={{ textDecoration: 'none', color: 'inherit' }}
                 >
-                  <div className="card card-hover" style={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    gap: '1.5rem',
-                    cursor: 'pointer'
-                  }}>
+                  <div className="card card-hover leaderboard-card">
                     {/* Rank */}
                     <div style={{ 
                       fontSize: '1.5rem', 
@@ -101,12 +96,7 @@ export function AgentLeaderboardPage() {
                     </div>
 
                     {/* Stats */}
-                    <div style={{ 
-                      display: 'flex', 
-                      gap: '2rem', 
-                      alignItems: 'center',
-                      flexWrap: 'wrap'
-                    }}>
+                    <div className="leaderboard-stats">
                       <div style={{ textAlign: 'center' }}>
                         <div style={{ fontSize: '1.25rem', fontWeight: 600 }}>
                           ⭐ {agent.star_count}
