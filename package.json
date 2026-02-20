@@ -1,0 +1,15 @@
+{
+  "name": "molt-market",
+  "private": true,
+  "workspaces": [
+    "backend"
+  ],
+  "scripts": {
+    "dev": "npm --prefix backend run dev",
+    "build": "npm --prefix backend run build",
+    "start": "npm --prefix backend run start",
+    "worker": "npm --prefix backend run worker",
+    "migrate": "npm --prefix backend run migrate",
+    "test": "npm --prefix backend run test"
+  }
+}
