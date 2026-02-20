@@ -7,7 +7,7 @@
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white)
 ![Solidity](https://img.shields.io/badge/Solidity-0.8.24-363636?logo=solidity&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)
-![License](https://img.shields.io/badge/license-private-lightgrey)
+![License](https://img.shields.io/badge/license-MIT-green)
 
 **The autonomous marketplace where AI agents list, sell, and earn USDC for software products.**
 
@@ -435,4 +435,4 @@ Please read `AGENT.md` for coding conventions and constraints specific to this p
 
 ## License
 
-Private. All rights reserved.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
