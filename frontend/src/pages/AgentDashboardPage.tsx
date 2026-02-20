@@ -2,6 +2,29 @@ import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { api, type Agent, type WalletBalance, type Listing } from '../api';
 
+function AgentSkeleton() {
+  return (
+    <div>
+      <div style={{ marginBottom: '1rem' }}>
+        <div className="skeleton" style={{ width: '120px', height: '16px', borderRadius: '4px' }} />
+      </div>
+      <div className="skeleton-card" style={{ marginBottom: '1.5rem' }}>
+        <div className="skeleton skeleton-line" style={{ width: '40%', height: '24px', marginBottom: '1rem' }} />
+        <div className="skeleton skeleton-line skeleton-line-medium" />
+        <div className="skeleton skeleton-line skeleton-line-short" />
+      </div>
+      <div className="stat-grid">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="skeleton-card" style={{ textAlign: 'center', padding: '1.25rem' }}>
+            <div className="skeleton" style={{ width: '60%', height: '24px', margin: '0 auto 0.5rem', borderRadius: '4px' }} />
+            <div className="skeleton" style={{ width: '80%', height: '12px', margin: '0 auto', borderRadius: '4px' }} />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function AgentDashboardPage() {
   const { id } = useParams<{ id: string }>();
   const [agent, setAgent] = useState<Agent | null>(null);
@@ -29,16 +52,14 @@ export function AgentDashboardPage() {
       .finally(() => setLoading(false));
   }, [id]);
 
-  if (loading) return <div className="loading">Loading agent...</div>;
+  if (loading) return <AgentSkeleton />;
   if (error) return <div className="error">{error}</div>;
   if (!agent) return <div className="empty">Agent not found.</div>;
-
-  const totalRevenue = listings.reduce((sum, l) => sum + Number(l.price_usdc) * l.review_count, 0);
 
   return (
     <div>
       <div style={{ marginBottom: '1rem' }}>
-        <Link to="/">&larr; Back to Catalog</Link>
+        <Link to="/">&larr; Back to Browse</Link>
       </div>
 
       <div className="card" style={{ marginBottom: '1.5rem' }}>
@@ -57,20 +78,20 @@ export function AgentDashboardPage() {
       <h2 className="section-title">Wallet</h2>
       <div className="stat-grid">
         <div className="stat-card">
-          <div className="stat-value">{wallet ? wallet.balance_eth : '—'}</div>
+          <div className="stat-value">{wallet ? wallet.balance_eth : '\u2014'}</div>
           <div className="stat-label">ETH Balance</div>
         </div>
         <div className="stat-card">
-          <div className="stat-value">{wallet?.balance_usdc ?? '—'}</div>
+          <div className="stat-value">{wallet?.balance_usdc ?? '\u2014'}</div>
           <div className="stat-label">USDC Balance</div>
         </div>
         <div className="stat-card">
           <div className="stat-value">{listings.length}</div>
-          <div className="stat-label">Active Listings</div>
+          <div className="stat-label">Listings</div>
         </div>
         <div className="stat-card">
-          <div className="stat-value">${totalRevenue.toFixed(2)}</div>
-          <div className="stat-label">Est. Revenue (USDC)</div>
+          <div className="stat-value">{listings.reduce((sum, l) => sum + l.review_count, 0)}</div>
+          <div className="stat-label">Total Reviews</div>
         </div>
       </div>
 
@@ -81,9 +102,9 @@ export function AgentDashboardPage() {
         </div>
       )}
 
-      <h2 className="section-title">Listings</h2>
+      <h2 className="section-title">Products by this Agent</h2>
       {listings.length === 0 ? (
-        <div className="empty">No listings yet.</div>
+        <div className="empty">This agent has no listings yet.</div>
       ) : (
         <div className="card">
           {listings.map((listing) => (
@@ -93,8 +114,8 @@ export function AgentDashboardPage() {
                   {listing.title}
                 </Link>
                 <div style={{ fontSize: '0.8rem', color: '#666' }}>
-                  {listing.product_type} &middot;{' '}
-                  <span className="stars">{'★'.repeat(Math.floor(Number(listing.average_rating)))}</span>
+                  <span className="badge badge-type" style={{ marginRight: '0.5rem' }}>{listing.product_type}</span>
+                  <span className="stars">{'\u2605'.repeat(Math.floor(Number(listing.average_rating)))}</span>
                   {' '}({listing.review_count} reviews)
                 </div>
               </div>
