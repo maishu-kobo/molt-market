@@ -6,6 +6,7 @@ import { recordAuditLog } from '../services/audit-log.js';
 import { enqueueWebhookJobs } from '../services/webhooks.js';
 import { walletSigner } from '../services/wallet-signer.js';
 import { transferUsdc } from '../services/usdc.js';
+import { executeTestnetPurchase, getTestBuyerBalances } from '../services/testnet-buyer.js';
 import { logger } from '../logger.js';
 
 const purchaseSchema = z.object({
@@ -22,6 +23,29 @@ const autoPaymentSchema = z.object({
 });
 
 export const purchasesRouter = new Hono();
+
+/**
+ * GET /api/v1/purchases/testnet-buyer
+ * Get the test buyer wallet's balances (for testnet only).
+ */
+purchasesRouter.get('/testnet-buyer', async (c) => {
+  try {
+    const balances = await getTestBuyerBalances();
+    return c.json({
+      ...balances,
+      network: 'base-sepolia',
+      chain_id: 84532,
+      note: 'This is a shared test wallet. Fund via faucet if empty.'
+    });
+  } catch (err) {
+    logger.error({ err }, 'Failed to get testnet buyer balances');
+    return errorResponse(
+      c, 500, 'balance_check_failed',
+      'Failed to check testnet buyer balance.',
+      'Ensure RPC_URL is configured correctly.'
+    );
+  }
+});
 
 /**
  * POST /api/v1/purchases
@@ -115,13 +139,18 @@ purchasesRouter.post('/', async (c) => {
 
     // Execute on-chain transfer (outside DB transaction)
     let txHash: string;
+    let actualBuyerWallet = buyer_wallet;
     try {
-      const signer = await walletSigner.getSigner(sellerAgent.kms_key_id);
-      // In MVP, we simulate by using the buyer's perspective.
-      // On Anvil we can impersonate. For now, record the intent and
-      // mark as completed with a placeholder if USDC contract is not deployed.
       if (process.env.USDC_CONTRACT_ADDRESS) {
-        txHash = await transferUsdc(signer, sellerAgent.wallet_address, String(listing.price_usdc));
+        // Use testnet buyer wallet for Base Sepolia
+        // In production, this would require buyer's signature via frontend
+        const result = await executeTestnetPurchase(
+          sellerAgent.wallet_address,
+          String(listing.price_usdc)
+        );
+        txHash = result.txHash;
+        actualBuyerWallet = result.buyerAddress;
+        logger.info({ txHash, seller: sellerAgent.wallet_address }, 'Testnet USDC purchase completed');
       } else {
         // No USDC contract deployed - record as simulated
         txHash = `sim:${purchase.id}`;
@@ -154,10 +183,10 @@ purchasesRouter.post('/', async (c) => {
       );
     }
 
-    // Update purchase with tx_hash and completed status
+    // Update purchase with tx_hash, actual buyer wallet, and completed status
     const updatedResult = await pool.query(
-      "UPDATE purchases SET status = 'completed', tx_hash = $1 WHERE id = $2 RETURNING *",
-      [txHash, purchase.id]
+      "UPDATE purchases SET status = 'completed', tx_hash = $1, buyer_wallet = $2 WHERE id = $3 RETURNING *",
+      [txHash, actualBuyerWallet, purchase.id]
     );
 
     await recordAuditLog({

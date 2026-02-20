@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { api, type Listing, type Review } from '../api';
+import { api, type Listing, type Review, type TestnetBuyer } from '../api';
 
 function StarRating({ rating }: { rating: number }) {
   const full = Math.floor(rating);
@@ -36,6 +36,8 @@ export function ListingDetailPage() {
   const [purchasing, setPurchasing] = useState(false);
   const [purchaseResult, setPurchaseResult] = useState<string | null>(null);
 
+  const [testnetBuyer, setTestnetBuyer] = useState<TestnetBuyer | null>(null);
+
   const [reviewBuyerId, setReviewBuyerId] = useState('');
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewComment, setReviewComment] = useState('');
@@ -44,10 +46,15 @@ export function ListingDetailPage() {
   useEffect(() => {
     if (!id) return;
     setLoading(true);
-    Promise.all([api.getListing(id), api.getReviews(id)])
-      .then(([l, r]) => {
+    Promise.all([api.getListing(id), api.getReviews(id), api.getTestnetBuyer()])
+      .then(([l, r, tb]) => {
         setListing(l);
         setReviews(Array.isArray(r) ? r : []);
+        setTestnetBuyer(tb);
+        // Pre-fill with testnet buyer address
+        if (tb && !buyerWallet) {
+          setBuyerWallet(tb.address);
+        }
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
@@ -153,6 +160,22 @@ export function ListingDetailPage() {
               <p style={{ fontSize: '0.8rem', marginTop: '0.5rem', color: purchaseResult.includes('failed') ? '#c62828' : '#2e7d32' }}>
                 {purchaseResult}
               </p>
+            )}
+            {testnetBuyer && (
+              <div className="testnet-info" style={{ marginTop: '1rem', padding: '0.75rem', background: 'rgba(255, 183, 77, 0.1)', borderRadius: '6px', border: '1px solid rgba(255, 183, 77, 0.3)' }}>
+                <div style={{ fontSize: '0.7rem', fontWeight: 600, color: '#f57c00', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  ⚠️ Base Sepolia Testnet
+                </div>
+                <div style={{ fontSize: '0.75rem', color: '#aaa' }}>
+                  <div>Test Buyer: <code style={{ fontSize: '0.65rem' }}>{testnetBuyer.address.slice(0, 10)}...{testnetBuyer.address.slice(-8)}</code></div>
+                  <div style={{ marginTop: '0.25rem' }}>ETH: {Number(testnetBuyer.ethBalance).toFixed(4)} | USDC: {Number(testnetBuyer.usdcBalance).toFixed(2)}</div>
+                  {Number(testnetBuyer.ethBalance) === 0 && (
+                    <div style={{ marginTop: '0.5rem', color: '#ef5350' }}>
+                      ⛽ No ETH for gas! Get from <a href="https://www.alchemy.com/faucets/base-sepolia" target="_blank" rel="noreferrer" style={{ color: '#ff9800' }}>faucet</a>
+                    </div>
+                  )}
+                </div>
+              </div>
             )}
           </div>
         </div>

@@ -71,6 +71,15 @@ export type Purchase = {
   created_at: string;
 };
 
+export type TestnetBuyer = {
+  address: string;
+  ethBalance: string;
+  usdcBalance: string;
+  network: string;
+  chain_id: number;
+  note: string;
+};
+
 export type ListingsResponse = {
   data: Listing[];
   pagination: { limit: number; offset: number; count: number };
@@ -158,6 +167,10 @@ export const api = {
 
   checkStarred(agentId: string, userId: string): Promise<{ starred: boolean }> {
     return apiFetch(`/api/v1/agents/${agentId}/starred?user_id=${encodeURIComponent(userId)}`);
+  },
+
+  getTestnetBuyer(): Promise<TestnetBuyer> {
+    return apiFetch('/api/v1/purchases/testnet-buyer');
   }
 };
 
