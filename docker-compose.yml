@@ -1,5 +1,3 @@
-version: '3.9'
-
 services:
   db:
     image: postgres:16-alpine
@@ -11,41 +9,135 @@ services:
       - '5432:5432'
     volumes:
       - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      interval: 3s
+      timeout: 3s
+      retries: 10
 
   redis:
     image: redis:7-alpine
     ports:
       - '6379:6379'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 3s
+      timeout: 3s
+      retries: 10
 
   anvil:
     image: ghcr.io/foundry-rs/foundry:latest
     command: ['anvil', '--host', '0.0.0.0', '--port', '8545']
     ports:
       - '8545:8545'
+    healthcheck:
+      test: ['CMD-SHELL', 'cast block-number --rpc-url http://localhost:8545 || exit 1']
+      interval: 3s
+      timeout: 3s
+      retries: 10
 
+  # Deploy TestUSDC ERC-20 to Anvil
+  deploy-usdc:
+    image: ghcr.io/foundry-rs/foundry:latest
+    volumes:
+      - ./contracts:/contracts
+      - usdc_data:/data
+    entrypoint: ['sh', '/contracts/deploy.sh']
+    depends_on:
+      anvil:
+        condition: service_healthy
+
+  # Moltbook mock marketing API
+  moltbook-mock:
+    build: ./backend
+    command: ['npx', 'tsx', '/scripts/moltbook-mock.ts']
+    volumes:
+      - ./scripts:/scripts
+    ports:
+      - '4000:4000'
+    environment:
+      MOLTBOOK_MOCK_PORT: 4000
+
+  # Run DB migrations
+  migrate:
+    build: ./backend
+    command: ['sh', '-c', 'npx node-pg-migrate -m /migrations -d $DATABASE_URL up']
+    volumes:
+      - ./migrations:/migrations
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@db:5432/openclaw
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # Seed sample data
+  seed:
+    build: ./backend
+    command: ['npx', 'tsx', '/scripts/seed.ts']
+    volumes:
+      - ./scripts:/scripts
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@db:5432/openclaw
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  # API server
   api:
     build: ./backend
+    command: ['npx', 'tsx', 'src/index.ts']
     environment:
       DATABASE_URL: postgres://postgres:postgres@db:5432/openclaw
       REDIS_URL: redis://redis:6379
       API_KEY: local-dev-key
       PORT: 3000
+      RPC_URL: http://anvil:8545
+      LOCAL_WALLET_MNEMONIC: 'test test test test test test test test test test test junk'
+      MOLTBOOK_API_URL: http://moltbook-mock:4000
+      MOLTBOOK_API_KEY: mock-key
     ports:
       - '3000:3000'
+    volumes:
+      - usdc_data:/data
     depends_on:
-      - db
-      - redis
+      migrate:
+        condition: service_completed_successfully
+      deploy-usdc:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
 
+  # Background workers (webhooks, Moltbook sync, auto-payments)
   worker:
     build: ./backend
-    command: ['node', 'dist/worker.js']
+    command: ['npx', 'tsx', 'src/worker.ts']
     environment:
       DATABASE_URL: postgres://postgres:postgres@db:5432/openclaw
       REDIS_URL: redis://redis:6379
       API_KEY: local-dev-key
+      RPC_URL: http://anvil:8545
+      LOCAL_WALLET_MNEMONIC: 'test test test test test test test test test test test junk'
+      MOLTBOOK_API_URL: http://moltbook-mock:4000
+      MOLTBOOK_API_KEY: mock-key
+    volumes:
+      - usdc_data:/data
     depends_on:
-      - db
-      - redis
+      api:
+        condition: service_started
+      redis:
+        condition: service_healthy
+
+  # Frontend dev server
+  frontend:
+    build: ./frontend
+    ports:
+      - '5173:5173'
+    environment:
+      VITE_API_KEY: local-dev-key
+    depends_on:
+      api:
+        condition: service_started
 
 volumes:
   db_data:
+  usdc_data:
