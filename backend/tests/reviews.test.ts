@@ -42,6 +42,10 @@ async function createListing(agentId: string, url?: string): Promise<string> {
   return id;
 }
 
+afterAll(async () => {
+  await pool.end();
+});
+
 describe('POST /api/v1/listings/:id/reviews', () => {
   beforeAll(async () => {
     await ensureSchema();
@@ -49,10 +53,6 @@ describe('POST /api/v1/listings/:id/reviews', () => {
 
   beforeEach(async () => {
     await truncateAll();
-  });
-
-  afterAll(async () => {
-    await pool.end();
   });
 
   it('returns 422 for missing fields', async () => {
