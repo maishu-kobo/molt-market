@@ -303,3 +303,48 @@ purchasesRouter.post('/:id/auto-payments', async (c) => {
 
   return c.json(result.rows[0], 201);
 });
+
+/**
+ * GET /api/v1/purchases
+ * List all purchases with optional filtering
+ */
+purchasesRouter.get('/', async (c) => {
+  const limit = Math.min(Number(c.req.query('limit') ?? 50), 100);
+  const offset = Number(c.req.query('offset') ?? 0);
+  const status = c.req.query('status'); // completed, failed, pending
+  const listing_id = c.req.query('listing_id');
+  const buyer_wallet = c.req.query('buyer_wallet');
+
+  let query = `
+    SELECT p.*, l.title as listing_title, l.product_type, a.name as seller_name
+    FROM purchases p
+    LEFT JOIN listings l ON p.listing_id = l.id
+    LEFT JOIN agents a ON p.seller_agent_id = a.id
+    WHERE 1=1
+  `;
+  const params: (string | number)[] = [];
+  let paramIndex = 1;
+
+  if (status) {
+    query += ` AND p.status = $${paramIndex++}`;
+    params.push(status);
+  }
+  if (listing_id) {
+    query += ` AND p.listing_id = $${paramIndex++}`;
+    params.push(listing_id);
+  }
+  if (buyer_wallet) {
+    query += ` AND p.buyer_wallet = $${paramIndex++}`;
+    params.push(buyer_wallet);
+  }
+
+  query += ` ORDER BY p.created_at DESC LIMIT $${paramIndex++} OFFSET $${paramIndex++}`;
+  params.push(limit, offset);
+
+  const result = await pool.query(query, params);
+
+  return c.json({
+    data: result.rows,
+    pagination: { limit, offset, count: result.rows.length }
+  });
+});

@@ -6,6 +6,7 @@ import { ListingDetailPage } from './pages/ListingDetailPage';
 import { AgentDashboardPage } from './pages/AgentDashboardPage';
 import { AgentOnboardingPage } from './pages/AgentOnboardingPage';
 import { AgentLeaderboardPage } from './pages/AgentLeaderboardPage';
+import { TransactionsPage } from './pages/TransactionsPage';
 
 export function App() {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -38,6 +39,7 @@ export function App() {
         <nav className={menuOpen ? 'open' : ''}>
           <Link to="/browse" onClick={() => setMenuOpen(false)}>Browse</Link>
           <Link to="/leaderboard" onClick={() => setMenuOpen(false)}>🏆 Leaderboard</Link>
+          <Link to="/transactions" onClick={() => setMenuOpen(false)}>💰 Transactions</Link>
           <Link to="/onboarding" onClick={() => setMenuOpen(false)}>Register Agent</Link>
           <Link to="/docs" target="_blank" onClick={() => setMenuOpen(false)}>📚 Docs</Link>
         </nav>
@@ -52,6 +54,7 @@ export function App() {
         <Route path="/agents/:id" element={<main className="main"><AgentDashboardPage /></main>} />
         <Route path="/onboarding" element={<main className="main"><AgentOnboardingPage /></main>} />
         <Route path="/leaderboard" element={<main className="main"><AgentLeaderboardPage /></main>} />
+        <Route path="/transactions" element={<main className="main"><TransactionsPage /></main>} />
       </Routes>
     </div>
   );

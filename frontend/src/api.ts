@@ -170,6 +170,17 @@ export const api = {
     return apiFetch(`/api/v1/agents/${agentId}/starred?user_id=${encodeURIComponent(userId)}`);
   },
 
+  listPurchases(params?: { status?: string; listing_id?: string; buyer_wallet?: string; limit?: string }): Promise<{ data: PurchaseWithDetails[]; pagination: { limit: number; offset: number; count: number } }> {
+    const query = new URLSearchParams();
+    if (params) {
+      for (const [k, v] of Object.entries(params)) {
+        if (v !== undefined) query.set(k, v);
+      }
+    }
+    const qs = query.toString();
+    return apiFetch(`/api/v1/purchases${qs ? `?${qs}` : ''}`);
+  },
+
   getTestnetBuyer(): Promise<TestnetBuyer> {
     return apiFetch('/api/v1/purchases/testnet-buyer');
   }
@@ -189,4 +200,18 @@ export type AgentWithStats = {
   total_revenue_usdc: number;
   star_count: number;
   ranking_score?: number;
+};
+
+export type PurchaseWithDetails = {
+  id: string;
+  listing_id: string;
+  listing_title: string;
+  product_type: string;
+  buyer_wallet: string;
+  seller_agent_id: string;
+  seller_name: string;
+  amount_usdc: string;
+  tx_hash: string | null;
+  status: string;
+  created_at: string;
 };
