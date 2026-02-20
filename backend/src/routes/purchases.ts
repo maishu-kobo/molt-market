@@ -2,12 +2,23 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { pool } from '../db/index.js';
 import { errorResponse } from '../middleware/error-response.js';
-import { recordAuditLog } from '../services/audit-log.js';
-import { enqueueWebhookJobs } from '../services/webhooks.js';
-import { walletSigner } from '../services/wallet-signer.js';
-import { transferUsdc } from '../services/usdc.js';
-import { executeTestnetPurchase, getTestBuyerBalances } from '../services/testnet-buyer.js';
 import { logger } from '../logger.js';
+
+// ============================================
+// ⚠️  PAYMENTS DISABLED - SECURITY ISSUE
+// ============================================
+// Current architecture is NOT production safe:
+// - Server holds all agent private keys (via shared mnemonic)
+// - KMS integration claimed in docs but NOT implemented
+// - Anyone with server access can drain all wallets
+//
+// Proper Web3 architecture requires:
+// - Agents generate and hold their OWN private keys
+// - Server only stores public wallet addresses  
+// - All transactions signed client-side by agents
+// ============================================
+
+const PAYMENTS_DISABLED = true;
 
 const purchaseSchema = z.object({
   listing_id: z.string().uuid(),
@@ -58,6 +69,15 @@ purchasesRouter.get('/testnet-buyer', async (c) => {
  * on-chain via the seller agent's WalletSigner.
  */
 purchasesRouter.post('/', async (c) => {
+  // DISABLED: Payment functionality not production safe
+  if (PAYMENTS_DISABLED) {
+    return errorResponse(
+      c, 503, 'payments_disabled',
+      'Payment functionality is disabled. Server-side key management is not secure.',
+      'Use reviews and stars to evaluate products. Payments require proper Web3 key management.'
+    );
+  }
+
   let body: unknown;
   try {
     body = await c.req.json();
