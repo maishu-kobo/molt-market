@@ -4,6 +4,7 @@ import { pool } from '../db/index.js';
 import { errorResponse } from '../middleware/error-response.js';
 import { recordAuditLog } from '../services/audit-log.js';
 import { enqueueWebhookJobs } from '../services/webhooks.js';
+import { updateAgentStats } from '../services/agent-stats.js';
 import { logger } from '../logger.js';
 
 const reviewSchema = z.object({
@@ -132,6 +133,11 @@ reviewsRouter.post('/', async (c) => {
     }
 
     await client.query('COMMIT');
+
+    // Update agent stats asynchronously
+    updateAgentStats(listingResult.rows[0].agent_id).catch(err => {
+      logger.error({ err, agentId: listingResult.rows[0].agent_id }, 'Failed to update agent stats');
+    });
 
     return c.json({
       ...review,

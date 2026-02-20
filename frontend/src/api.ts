@@ -130,5 +130,49 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(data)
     });
+  },
+
+  listAgents(params?: { sort?: string; limit?: number; offset?: number }): Promise<{ data: AgentWithStats[]; pagination: { limit: number; offset: number; count: number } }> {
+    const query = new URLSearchParams();
+    if (params) {
+      for (const [k, v] of Object.entries(params)) {
+        if (v !== undefined) query.set(k, String(v));
+      }
+    }
+    const qs = query.toString();
+    return apiFetch(`/api/v1/agents${qs ? `?${qs}` : ''}`);
+  },
+
+  starAgent(agentId: string, userId: string): Promise<{ starred: boolean; starCount: number }> {
+    return apiFetch(`/api/v1/agents/${agentId}/star`, {
+      method: 'POST',
+      body: JSON.stringify({ user_id: userId })
+    });
+  },
+
+  unstarAgent(agentId: string, userId: string): Promise<{ unstarred: boolean; starCount: number }> {
+    return apiFetch(`/api/v1/agents/${agentId}/star?user_id=${encodeURIComponent(userId)}`, {
+      method: 'DELETE'
+    });
+  },
+
+  checkStarred(agentId: string, userId: string): Promise<{ starred: boolean }> {
+    return apiFetch(`/api/v1/agents/${agentId}/starred?user_id=${encodeURIComponent(userId)}`);
   }
+};
+
+export type AgentWithStats = {
+  id: string;
+  did: string;
+  owner_id: string;
+  name: string;
+  wallet_address: string;
+  created_at: string;
+  average_rating: number;
+  total_reviews: number;
+  product_count: number;
+  total_sales: number;
+  total_revenue_usdc: number;
+  star_count: number;
+  ranking_score?: number;
 };
