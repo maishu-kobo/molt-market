@@ -20,6 +20,7 @@ forge build
 
 echo "Deploying TestUSDC..."
 DEPLOY_OUTPUT=$(forge create src/TestUSDC.sol:TestUSDC \
+  --broadcast \
   --rpc-url "$ANVIL_RPC" \
   --private-key "$DEPLOYER_KEY" \
   --constructor-args "$INITIAL_SUPPLY")
