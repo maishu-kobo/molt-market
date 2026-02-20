@@ -8,6 +8,7 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
     "worker": "tsx src/worker.ts",
+    "retention": "tsx src/retention-worker.ts",
     "test": "vitest run",
     "migrate": "node-pg-migrate -c node-pg-migrate.json up",
     "migrate:down": "node-pg-migrate -c node-pg-migrate.json down"

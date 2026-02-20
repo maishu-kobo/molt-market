@@ -1,0 +1,15 @@
+[Unit]
+Description=Molt Market Retention Worker
+After=network.target postgresql.service redis-server.service molt-market.service
+
+[Service]
+Type=simple
+User=exedev
+WorkingDirectory=/home/exedev/molt-market
+ExecStart=/usr/bin/npm run retention
+Restart=always
+RestartSec=30
+Environment=NODE_ENV=production
+
+[Install]
+WantedBy=multi-user.target

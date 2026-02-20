@@ -2,6 +2,8 @@ import { useEffect, useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { api, type Listing } from '../api';
 
+const PAGE_SIZE = 20;
+
 function StarRating({ rating }: { rating: number }) {
   const full = Math.floor(rating);
   const half = rating - full >= 0.5;
@@ -36,19 +38,39 @@ export function CatalogPage() {
   const [showHidden, setShowHidden] = useState(false);
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState<SortOption>('newest');
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  // const [totalLoaded, setTotalLoaded] = useState(0);
+
+  useEffect(() => {
+    setPage(0);
+    setListings([]);
+    setHasMore(true);
+  }, [productType, showHidden]);
 
   useEffect(() => {
     setLoading(true);
     setError(null);
-    const params: Record<string, string | number> = { limit: 100, offset: 0 };
+    const params: Record<string, string | number> = { 
+      limit: PAGE_SIZE, 
+      offset: page * PAGE_SIZE 
+    };
     if (productType) params.product_type = productType;
     if (!showHidden) params.is_hidden = 'false';
 
     api.listListings(params)
-      .then((res) => setListings(res.data))
+      .then((res) => {
+        if (page === 0) {
+          setListings(res.data);
+        } else {
+          setListings(prev => [...prev, ...res.data]);
+        }
+        setHasMore(res.data.length === PAGE_SIZE);
+        // setTotalLoaded(res.pagination?.count ?? res.data.length);
+      })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
-  }, [productType, showHidden]);
+  }, [productType, showHidden, page]);
 
   const filtered = useMemo(() => {
     let result = listings;
@@ -81,6 +103,12 @@ export function CatalogPage() {
     return result;
   }, [listings, search, sort]);
 
+  const loadMore = () => {
+    if (!loading && hasMore) {
+      setPage(p => p + 1);
+    }
+  };
+
   return (
     <div>
       <h1 className="section-title">Browse Products</h1>
@@ -96,7 +124,7 @@ export function CatalogPage() {
 
         <select value={productType} onChange={(e) => setProductType(e.target.value)}>
           <option value="">All Types</option>
-          <option value="web">Web</option>
+          <option value="webapp">Web App</option>
           <option value="api">API</option>
           <option value="cli">CLI</option>
           <option value="mobile">Mobile</option>
@@ -120,61 +148,82 @@ export function CatalogPage() {
         </label>
       </div>
 
-      {loading && (
-        <div className="grid">
-          {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
-        </div>
-      )}
-
       {error && <div className="error">{error}</div>}
 
-      {!loading && !error && (
+      {!error && (
         <>
           <div className="result-count">
             {filtered.length} product{filtered.length !== 1 ? 's' : ''}
             {search && ` matching "${search}"`}
+            {hasMore && !search && ' (scroll for more)'}
           </div>
 
-          {filtered.length === 0 ? (
+          {loading && page === 0 ? (
+            <div className="grid">
+              {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
+            </div>
+          ) : filtered.length === 0 ? (
             <div className="empty">
               {search ? 'No products match your search.' : 'No products listed yet.'}
             </div>
           ) : (
-            <div className="grid">
-              {filtered.map((listing) => (
-                <Link key={listing.id} to={`/listings/${listing.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
-                  <div className="card card-hover" style={{ cursor: 'pointer', height: '100%' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                      <span className={`badge ${listing.is_hidden ? 'badge-hidden' : 'badge-active'}`}>
-                        {listing.is_hidden ? 'Hidden' : listing.status}
-                      </span>
-                      <span className="badge badge-type">{listing.product_type}</span>
+            <>
+              <div className="grid">
+                {filtered.map((listing) => (
+                  <Link key={listing.id} to={`/listings/${listing.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
+                    <div className="card card-hover" style={{ cursor: 'pointer', height: '100%' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                        <span className={`badge ${listing.is_hidden ? 'badge-hidden' : 'badge-active'}`}>
+                          {listing.is_hidden ? 'Hidden' : listing.status}
+                        </span>
+                        <span className="badge badge-type">{listing.product_type}</span>
+                      </div>
+                      <h3 style={{ fontSize: '1rem', marginBottom: '0.5rem' }}>{listing.title}</h3>
+                      {listing.description && (
+                        <p style={{
+                          fontSize: '0.85rem',
+                          color: 'var(--text-secondary)',
+                          marginBottom: '0.75rem',
+                          overflow: 'hidden',
+                          display: '-webkit-box',
+                          WebkitLineClamp: 2,
+                          WebkitBoxOrient: 'vertical'
+                        }}>
+                          {listing.description}
+                        </p>
+                      )}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto' }}>
+                        <span className="price">${Number(listing.price_usdc).toFixed(2)}</span>
+                        <StarRating rating={Number(listing.average_rating)} />
+                      </div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
+                        {listing.review_count} review{listing.review_count !== 1 ? 's' : ''}
+                      </div>
                     </div>
-                    <h3 style={{ fontSize: '1rem', marginBottom: '0.5rem' }}>{listing.title}</h3>
-                    {listing.description && (
-                      <p style={{
-                        fontSize: '0.85rem',
-                        color: '#666',
-                        marginBottom: '0.75rem',
-                        overflow: 'hidden',
-                        display: '-webkit-box',
-                        WebkitLineClamp: 2,
-                        WebkitBoxOrient: 'vertical'
-                      }}>
-                        {listing.description}
-                      </p>
-                    )}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto' }}>
-                      <span className="price">${Number(listing.price_usdc).toFixed(2)}</span>
-                      <StarRating rating={Number(listing.average_rating)} />
-                    </div>
-                    <div style={{ fontSize: '0.75rem', color: '#999', marginTop: '0.5rem' }}>
-                      {listing.review_count} review{listing.review_count !== 1 ? 's' : ''}
-                    </div>
-                  </div>
-                </Link>
-              ))}
-            </div>
+                  </Link>
+                ))}
+              </div>
+
+              {/* Load More Button */}
+              {hasMore && !search && (
+                <div style={{ textAlign: 'center', marginTop: '2rem' }}>
+                  <button 
+                    className="btn btn-secondary" 
+                    onClick={loadMore}
+                    disabled={loading}
+                  >
+                    {loading ? 'Loading...' : 'Load More'}
+                  </button>
+                </div>
+              )}
+
+              {/* Loading indicator for pagination */}
+              {loading && page > 0 && (
+                <div className="loading" style={{ marginTop: '1rem' }}>
+                  Loading more products...
+                </div>
+              )}
+            </>
           )}
         </>
       )}

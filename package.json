@@ -9,6 +9,7 @@
     "build": "npm --prefix backend run build",
     "start": "npm --prefix backend run start",
     "worker": "npm --prefix backend run worker",
+    "retention": "npm --prefix backend run retention",
     "migrate": "npm --prefix backend run migrate",
     "test": "npm --prefix backend run test"
   }
