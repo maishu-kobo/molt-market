@@ -10,7 +10,7 @@ export function App() {
     <div className="app">
       <header className="header">
         <Link to="/" className="logo">
-          <span style={{ fontSize: '1.5rem' }}>🦐</span>
+          <span style={{ fontSize: '1.5rem' }}>🦞</span>
           molt market
           <span style={{ 
             fontSize: '0.65rem', 
