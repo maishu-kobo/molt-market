@@ -5,8 +5,24 @@ import { api, type Listing, type Review } from '../api';
 function StarRating({ rating }: { rating: number }) {
   const full = Math.floor(rating);
   const half = rating - full >= 0.5;
-  const stars = '★'.repeat(full) + (half ? '½' : '') + '☆'.repeat(5 - full - (half ? 1 : 0));
+  const stars = '\u2605'.repeat(full) + (half ? '\u00BD' : '') + '\u2606'.repeat(5 - full - (half ? 1 : 0));
   return <span className="stars">{stars} ({rating.toFixed(1)})</span>;
+}
+
+function DetailSkeleton() {
+  return (
+    <div>
+      <div style={{ marginBottom: '1rem' }}>
+        <div className="skeleton" style={{ width: '120px', height: '16px', borderRadius: '4px' }} />
+      </div>
+      <div className="skeleton-card">
+        <div className="skeleton skeleton-line" style={{ width: '50%', height: '24px', marginBottom: '1rem' }} />
+        <div className="skeleton skeleton-line skeleton-line-full" />
+        <div className="skeleton skeleton-line skeleton-line-medium" />
+        <div className="skeleton skeleton-line skeleton-line-short" style={{ marginTop: '1rem' }} />
+      </div>
+    </div>
+  );
 }
 
 export function ListingDetailPage() {
@@ -79,43 +95,43 @@ export function ListingDetailPage() {
     }
   }
 
-  if (loading) return <div className="loading">Loading...</div>;
+  if (loading) return <DetailSkeleton />;
   if (error) return <div className="error">{error}</div>;
   if (!listing) return <div className="empty">Listing not found.</div>;
 
   return (
     <div>
       <div style={{ marginBottom: '1rem' }}>
-        <Link to="/">&larr; Back to Catalog</Link>
+        <Link to="/">&larr; Back to Browse</Link>
       </div>
 
       <div className="card">
         <div className="detail-header">
           <div className="detail-info">
             <h1 style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>{listing.title}</h1>
-            <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', marginBottom: '0.75rem' }}>
+            <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
               <span className={`badge ${listing.is_hidden ? 'badge-hidden' : 'badge-active'}`}>
                 {listing.is_hidden ? 'Hidden' : listing.status}
               </span>
-              <span style={{ fontSize: '0.85rem', color: '#666' }}>{listing.product_type}</span>
+              <span className="badge badge-type">{listing.product_type}</span>
               <StarRating rating={Number(listing.average_rating)} />
               <span style={{ fontSize: '0.85rem', color: '#666' }}>
                 {listing.review_count} review{listing.review_count !== 1 ? 's' : ''}
               </span>
             </div>
             {listing.description && (
-              <p style={{ color: '#444', marginBottom: '1rem' }}>{listing.description}</p>
+              <p style={{ color: '#444', marginBottom: '1rem', lineHeight: 1.6 }}>{listing.description}</p>
             )}
-            <p style={{ fontSize: '0.85rem' }}>
+            <p style={{ fontSize: '0.85rem', marginBottom: '0.25rem' }}>
               Product: <a href={listing.product_url} target="_blank" rel="noreferrer">{listing.product_url}</a>
             </p>
             <p style={{ fontSize: '0.85rem' }}>
-              Agent: <Link to={`/agents/${listing.agent_id}`}>{listing.agent_id}</Link>
+              Sold by: <Link to={`/agents/${listing.agent_id}`}>View Agent</Link>
             </p>
           </div>
           <div className="detail-aside">
             <div className="price" style={{ fontSize: '1.75rem', marginBottom: '1rem' }}>
-              ${Number(listing.price_usdc).toFixed(2)} USDC
+              ${Number(listing.price_usdc).toFixed(2)} <span style={{ fontSize: '0.9rem', fontWeight: 400, color: '#666' }}>USDC</span>
             </div>
             <div className="form-group">
               <input
@@ -143,7 +159,7 @@ export function ListingDetailPage() {
       </div>
 
       <div style={{ marginTop: '2rem' }}>
-        <h2 className="section-title">Reviews</h2>
+        <h2 className="section-title">Reviews ({reviews.length})</h2>
 
         <div className="card" style={{ marginBottom: '1.5rem' }}>
           <h3 style={{ fontSize: '1rem', marginBottom: '0.75rem' }}>Write a Review</h3>
@@ -162,7 +178,7 @@ export function ListingDetailPage() {
               <label>Rating</label>
               <select value={reviewRating} onChange={(e) => setReviewRating(Number(e.target.value))}>
                 {[5, 4, 3, 2, 1].map((n) => (
-                  <option key={n} value={n}>{'★'.repeat(n)}{'☆'.repeat(5 - n)} ({n})</option>
+                  <option key={n} value={n}>{'\u2605'.repeat(n)}{'\u2606'.repeat(5 - n)} ({n})</option>
                 ))}
               </select>
             </div>
@@ -181,13 +197,13 @@ export function ListingDetailPage() {
         </div>
 
         {reviews.length === 0 ? (
-          <div className="empty">No reviews yet.</div>
+          <div className="empty">No reviews yet. Be the first!</div>
         ) : (
           <div className="card">
             {reviews.map((review) => (
               <div key={review.id} className="review-item">
                 <div>
-                  <span className="stars">{'★'.repeat(review.rating)}{'☆'.repeat(5 - review.rating)}</span>
+                  <span className="stars">{'\u2605'.repeat(review.rating)}{'\u2606'.repeat(5 - review.rating)}</span>
                 </div>
                 {review.comment && <p style={{ margin: '0.25rem 0' }}>{review.comment}</p>}
                 <div className="review-meta">
