@@ -5,8 +5,6 @@ services:
       POSTGRES_DB: openclaw
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-    ports:
-      - '5432:5432'
     volumes:
       - db_data:/var/lib/postgresql/data
     healthcheck:
@@ -17,8 +15,6 @@ services:
 
   redis:
     image: redis:7-alpine
-    ports:
-      - '6379:6379'
     healthcheck:
       test: ['CMD', 'redis-cli', 'ping']
       interval: 3s
@@ -27,9 +23,7 @@ services:
 
   anvil:
     image: ghcr.io/foundry-rs/foundry:latest
-    command: ['anvil', '--host', '0.0.0.0', '--port', '8545']
-    ports:
-      - '8545:8545'
+    entrypoint: ['anvil', '--host', '0.0.0.0', '--port', '8545']
     healthcheck:
       test: ['CMD-SHELL', 'cast block-number --rpc-url http://localhost:8545 || exit 1']
       interval: 3s
@@ -39,6 +33,7 @@ services:
   # Deploy TestUSDC ERC-20 to Anvil
   deploy-usdc:
     image: ghcr.io/foundry-rs/foundry:latest
+    user: root
     volumes:
       - ./contracts:/contracts
       - usdc_data:/data
@@ -50,7 +45,7 @@ services:
   # Moltbook mock marketing API
   moltbook-mock:
     build: ./backend
-    command: ['npx', 'tsx', '/scripts/moltbook-mock.ts']
+    command: ['sh', '-c', 'cd /app && NODE_PATH=/app/node_modules npx tsx /scripts/moltbook-mock.ts']
     volumes:
       - ./scripts:/scripts
     ports:
@@ -61,7 +56,7 @@ services:
   # Run DB migrations
   migrate:
     build: ./backend
-    command: ['sh', '-c', 'npx node-pg-migrate -m /migrations -d $DATABASE_URL up']
+    command: ['sh', '-c', 'npx node-pg-migrate -m /migrations up']
     volumes:
       - ./migrations:/migrations
     environment:
@@ -73,7 +68,7 @@ services:
   # Seed sample data
   seed:
     build: ./backend
-    command: ['npx', 'tsx', '/scripts/seed.ts']
+    command: ['sh', '-c', 'cd /app && NODE_PATH=/app/node_modules npx tsx /scripts/seed.ts']
     volumes:
       - ./scripts:/scripts
     environment:
@@ -98,7 +93,7 @@ services:
     ports:
       - '3000:3000'
     volumes:
-      - usdc_data:/data
+      - usdc_data:/data:ro
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -120,7 +115,7 @@ services:
       MOLTBOOK_API_URL: http://moltbook-mock:4000
       MOLTBOOK_API_KEY: mock-key
     volumes:
-      - usdc_data:/data
+      - usdc_data:/data:ro
     depends_on:
       api:
         condition: service_started

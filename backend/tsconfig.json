@@ -13,5 +13,6 @@
     "resolveJsonModule": true,
     "types": ["node"]
   },
-  "include": ["src", "tests", "vitest.config.ts"]
+  "include": ["src"],
+  "exclude": ["tests", "vitest.config.ts"]
 }
