@@ -13,6 +13,7 @@ import { reviewsRouter } from './routes/reviews.js';
 import { moltbookRouter } from './routes/moltbook.js';
 import { purchasesRouter } from './routes/purchases.js';
 import { webhooksRouter } from './routes/webhooks.js';
+import { launchesRouter } from './routes/launches.js';
 
 export function createApp() {
   const app = new Hono();
@@ -30,6 +31,7 @@ export function createApp() {
   app.route('/api/v1/listings', listingsRouter);
   app.route('/api/v1/listings', moltbookRouter);
   app.route('/api/v1/webhooks', webhooksRouter);
+  app.route('/api/v1/launches', launchesRouter);
 
   app.route('/api/v1/agents', agentsRouter);
   app.route('/api/v1/purchases', purchasesRouter);

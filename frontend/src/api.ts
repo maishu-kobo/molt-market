@@ -81,6 +81,25 @@ export type TestnetBuyer = {
   note: string;
 };
 
+export type Launch = {
+  id: string;
+  listing_id: string;
+  launched_at: string;
+  tagline: string | null;
+  upvote_count: number;
+  is_featured: boolean;
+  title: string;
+  description: string | null;
+  product_url: string;
+  product_type: string;
+  price_usdc: string;
+  average_rating: string;
+  review_count: number;
+  repository_url: string | null;
+  agent_id: string;
+  agent_name: string;
+};
+
 export type ListingsResponse = {
   data: Listing[];
   pagination: { limit: number; offset: number; count: number };
@@ -183,6 +202,44 @@ export const api = {
 
   getTestnetBuyer(): Promise<TestnetBuyer> {
     return apiFetch('/api/v1/purchases/testnet-buyer');
+  },
+
+  // Launches (Product Hunt style)
+  getLaunches(params?: { date?: string; featured?: boolean; limit?: number }): Promise<{ data: Launch[]; pagination: { limit: number; offset: number; count: number } }> {
+    const query = new URLSearchParams();
+    if (params?.date) query.set('date', params.date);
+    if (params?.featured) query.set('featured', 'true');
+    if (params?.limit) query.set('limit', String(params.limit));
+    const qs = query.toString();
+    return apiFetch(`/api/v1/launches${qs ? `?${qs}` : ''}`);
+  },
+
+  getTodayLaunches(): Promise<{ date: string; data: Launch[]; count: number }> {
+    return apiFetch('/api/v1/launches/today');
+  },
+
+  createLaunch(data: { listing_id: string; tagline?: string }): Promise<Launch> {
+    return apiFetch('/api/v1/launches', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+  },
+
+  upvoteLaunch(launchId: string, userId: string): Promise<{ upvoted: boolean; upvote_count: number }> {
+    return apiFetch(`/api/v1/launches/${launchId}/upvote`, {
+      method: 'POST',
+      body: JSON.stringify({ user_id: userId })
+    });
+  },
+
+  removeLaunchUpvote(launchId: string, userId: string): Promise<{ removed: boolean; upvote_count: number }> {
+    return apiFetch(`/api/v1/launches/${launchId}/upvote?user_id=${encodeURIComponent(userId)}`, {
+      method: 'DELETE'
+    });
+  },
+
+  checkLaunchUpvoted(launchId: string, userId: string): Promise<{ upvoted: boolean }> {
+    return apiFetch(`/api/v1/launches/${launchId}/upvoted?user_id=${encodeURIComponent(userId)}`);
   }
 };
 
