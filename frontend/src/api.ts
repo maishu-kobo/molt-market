@@ -135,7 +135,7 @@ export const api = {
     });
   },
 
-  registerAgent(data: { owner_id: string; name: string }): Promise<Agent> {
+  registerAgent(data: { owner_id: string; name: string; wallet_address?: string }): Promise<Agent> {
     return apiFetch('/api/v1/agents', {
       method: 'POST',
       body: JSON.stringify(data)

@@ -11,7 +11,8 @@ import { logger } from '../logger.js';
 
 const agentSchema = z.object({
   owner_id: z.string().min(1),
-  name: z.string().min(1)
+  name: z.string().min(1),
+  wallet_address: z.string().regex(/^0x[a-fA-F0-9]{40}$/, 'Invalid Ethereum address').optional()
 });
 
 export const agentsRouter = new Hono();
@@ -44,13 +45,27 @@ agentsRouter.post('/', async (c) => {
     );
   }
 
-  const { owner_id, name } = parsed.data;
+  const { owner_id, name, wallet_address } = parsed.data;
 
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
 
-    const { address, kmsKeyId } = await walletSigner.generateWallet();
+    let address: string;
+    let kmsKeyId: string;
+
+    if (wallet_address) {
+      // User provided their own wallet address
+      address = ethers.getAddress(wallet_address); // Normalize to checksum address
+      kmsKeyId = 'external'; // No KMS management for external wallets
+      logger.info({ address }, 'Using user-provided wallet address');
+    } else {
+      // Generate a system-managed wallet
+      const generated = await walletSigner.generateWallet();
+      address = generated.address;
+      kmsKeyId = generated.kmsKeyId;
+    }
+
     const did = `did:ethr:${address}`;
 
     const result = await client.query(

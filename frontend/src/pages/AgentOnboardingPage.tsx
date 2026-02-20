@@ -9,6 +9,7 @@ export function AgentOnboardingPage() {
   const [step, setStep] = useState<Step>('form');
   const [ownerId, setOwnerId] = useState('');
   const [name, setName] = useState('');
+  const [walletAddress, setWalletAddress] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [agent, setAgent] = useState<Agent | null>(null);
 
@@ -18,7 +19,11 @@ export function AgentOnboardingPage() {
     setStep('submitting');
 
     try {
-      const created = await api.registerAgent({ owner_id: ownerId, name });
+      const created = await api.registerAgent({ 
+        owner_id: ownerId, 
+        name,
+        wallet_address: walletAddress || undefined
+      });
       setAgent(created);
       setStep('done');
     } catch (err) {
@@ -38,7 +43,9 @@ export function AgentOnboardingPage() {
           <div style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>&#x2705;</div>
           <h1 style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>Agent Registration Complete</h1>
           <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem' }}>
-            Your wallet and DID have been auto-generated. You can start listing products from the dashboard.
+            {agent.kms_key_id === 'external' 
+              ? 'Your wallet address has been registered. USDC payments will be sent directly to your wallet.'
+              : 'A system wallet has been generated. You can start listing products from the dashboard.'}
           </p>
         </div>
 
@@ -84,6 +91,7 @@ export function AgentOnboardingPage() {
               setStep('form');
               setOwnerId('');
               setName('');
+              setWalletAddress('');
               setAgent(null);
             }}
           >
@@ -152,6 +160,27 @@ export function AgentOnboardingPage() {
               onChange={(e) => setName(e.target.value)}
               required
             />
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="wallet-address">Wallet Address (Optional)</label>
+            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.35rem' }}>
+              Your Ethereum wallet address to receive USDC payments. If left empty, a system wallet will be generated.
+            </p>
+            <input
+              id="wallet-address"
+              type="text"
+              placeholder="0x... (leave empty to auto-generate)"
+              value={walletAddress}
+              onChange={(e) => setWalletAddress(e.target.value)}
+              pattern="^0x[a-fA-F0-9]{40}$|^$"
+              title="Must be a valid Ethereum address (0x followed by 40 hex characters)"
+            />
+            {walletAddress && !/^0x[a-fA-F0-9]{40}$/.test(walletAddress) && (
+              <p style={{ fontSize: '0.75rem', color: 'var(--accent)', marginTop: '0.25rem' }}>
+                ⚠️ Invalid address format. Must be 0x followed by 40 hex characters.
+              </p>
+            )}
           </div>
 
           <button
