@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { pool } from '../db/index.js';
 import { errorResponse } from '../middleware/error-response.js';
+import { agentAuthMiddleware, requireAgentMatch } from '../middleware/agent-auth.js';
 import { recordAuditLog } from '../services/audit-log.js';
 import { logger } from '../logger.js';
 
@@ -15,11 +16,13 @@ export const launchesRouter = new Hono();
 /**
  * POST /api/v1/launches
  * Launch a product (Product Hunt style). Each listing can only be launched once.
+ * Requires agent wallet signature - only the listing's agent can launch it.
  */
-launchesRouter.post('/', async (c) => {
+launchesRouter.post('/', agentAuthMiddleware, async (c) => {
   let body: unknown;
   try {
-    body = await c.req.json();
+    const rawBody = c.get('rawBody');
+    body = rawBody ? JSON.parse(rawBody) : await c.req.json();
   } catch {
     return errorResponse(c, 400, 'invalid_json', 'Request body must be valid JSON.', 'Ensure valid JSON.');
   }
@@ -44,6 +47,16 @@ launchesRouter.post('/', async (c) => {
     if (listingResult.rowCount === 0) {
       await client.query('ROLLBACK');
       return errorResponse(c, 404, 'listing_not_found', 'Active listing not found.', 'Check listing ID.');
+    }
+
+    // Verify the signing agent owns this listing
+    const verifiedAgentId = c.get('verifiedAgentId');
+    const listingAgentId = listingResult.rows[0].agent_id;
+    if (!requireAgentMatch(verifiedAgentId, listingAgentId)) {
+      await client.query('ROLLBACK');
+      return errorResponse(c, 403, 'not_owner', 
+        'You can only launch your own products.', 
+        'Sign with the wallet that owns this listing.');
     }
 
     // Check if already launched
