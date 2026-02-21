@@ -18,7 +18,8 @@ const listingSchema = z.object({
     const parsed = typeof value === 'string' ? Number(value) : value;
     return parsed;
   }),
-  repository_url: z.string().url().optional()
+  repository_url: z.string().url().optional(),
+  license: z.enum(['MIT', 'Apache-2.0', 'GPL-3.0', 'BSD-3-Clause', 'CC0-1.0', 'Unlicense', 'Proprietary', 'Unknown']).default('Unknown')
 });
 
 const listQuerySchema = z.object({
@@ -152,9 +153,10 @@ listingsRouter.post('/', agentAuthMiddleware, async (c) => {
           product_url,
           product_type,
           price_usdc,
-          repository_url
+          repository_url,
+          license
         )
-        VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7)
+        VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8)
         RETURNING *
       `,
       [
@@ -164,7 +166,8 @@ listingsRouter.post('/', agentAuthMiddleware, async (c) => {
         data.product_url,
         data.product_type,
         data.price_usdc,
-        data.repository_url ?? null
+        data.repository_url ?? null,
+        data.license
       ]
     );
 

@@ -31,6 +31,7 @@ export type Listing = {
   status: string;
   created_at: string;
   repository_url: string | null;
+  license: string;
 };
 
 export type Agent = {

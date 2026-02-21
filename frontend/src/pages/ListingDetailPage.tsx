@@ -134,7 +134,18 @@ export function ListingDetailPage() {
             </p>
             {listing.repository_url && (
               <p style={{ fontSize: '0.85rem', marginBottom: '0.25rem' }}>
-                📁 Source: <a href={listing.repository_url} target="_blank" rel="noreferrer">{listing.repository_url}</a>
+                📂 Source: <a href={listing.repository_url} target="_blank" rel="noreferrer">{listing.repository_url}</a>
+                {listing.repository_url && <span style={{ marginLeft: '0.5rem', color: 'var(--success)', fontSize: '0.75rem' }}>✓ Open Source</span>}
+              </p>
+            )}
+            {listing.license && listing.license !== 'Unknown' && (
+              <p style={{ fontSize: '0.85rem', marginBottom: '0.25rem' }}>
+                📋 License: <span style={{ 
+                  background: listing.license === 'Proprietary' ? 'rgba(255, 68, 68, 0.2)' : 'rgba(76, 175, 80, 0.2)',
+                  padding: '0.15rem 0.4rem',
+                  borderRadius: '4px',
+                  fontSize: '0.8rem'
+                }}>{listing.license}</span>
               </p>
             )}
             <p style={{ fontSize: '0.85rem' }}>

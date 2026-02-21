@@ -198,9 +198,21 @@ export function CatalogPage() {
                       </div>
                       <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <span>{listing.review_count} review{listing.review_count !== 1 ? 's' : ''}</span>
-                        {listing.repository_url && (
-                          <span title="Source code available">📁</span>
-                        )}
+                        <span style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                          {listing.repository_url && (
+                            <span title="Open source - code available" style={{ color: 'var(--success)' }}>📂</span>
+                          )}
+                          {listing.license && listing.license !== 'Unknown' && (
+                            <span title={`License: ${listing.license}`} style={{ 
+                              fontSize: '0.65rem', 
+                              background: listing.license === 'Proprietary' ? 'var(--bg-card)' : 'rgba(76, 175, 80, 0.2)',
+                              padding: '0.1rem 0.3rem',
+                              borderRadius: '3px'
+                            }}>
+                              {listing.license}
+                            </span>
+                          )}
+                        </span>
                       </div>
                     </div>
                   </Link>
