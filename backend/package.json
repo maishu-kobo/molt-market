@@ -6,10 +6,14 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
     "start": "node dist/index.js",
     "worker": "tsx src/worker.ts",
     "retention": "tsx src/retention-worker.ts",
     "test": "vitest run",
+    "test:unit": "vitest run tests/purchase-service.test.ts tests/purchase-repository.test.ts tests/purchases-route.test.ts tests/network-security.test.ts",
+    "test:coverage": "vitest run tests/purchase-service.test.ts tests/purchase-repository.test.ts tests/purchases-route.test.ts tests/network-security.test.ts --coverage",
+    "security:audit": "npm audit --audit-level=high",
     "migrate": "node-pg-migrate -c node-pg-migrate.json up",
     "migrate:down": "node-pg-migrate -c node-pg-migrate.json down"
   },
@@ -32,6 +36,7 @@
     "node-pg-migrate": "^7.7.3",
     "tsx": "^4.15.4",
     "typescript": "^5.6.2",
+    "@vitest/coverage-v8": "^2.1.9",
     "vitest": "^2.1.4"
   }
 }

@@ -191,6 +191,8 @@ CREATE TABLE reviews (
 |------|---------------|--------|
 | — | Project initialized with DeepForm | Done |
 | 2026-02-20 | Implemented listings API (POST/GET) with PostgreSQL persistence, webhook queueing via BullMQ, audit logs, migrations, and backend scaffolding | Done |
+| 2026-02-21 | Refactored purchases flow into route/service/repository layers with dependency injection and added DB-independent unit tests for purchase outcomes | Done |
+| 2026-02-21 | Fixed backend TypeScript build errors, added security hardening (secure headers, webhook URL SSRF guard, timeout), and expanded unit tests for services/routes/repositories | Done |
 
 ## Notes
 

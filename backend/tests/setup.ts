@@ -3,9 +3,9 @@ if (!process.env.API_KEY) {
 }
 
 if (!process.env.DATABASE_URL) {
-  throw new Error('DATABASE_URL is required for tests.');
+  process.env.DATABASE_URL = 'postgres://postgres:postgres@127.0.0.1:5432/molt_market_test';
 }
 
 if (!process.env.REDIS_URL) {
-  throw new Error('REDIS_URL is required for tests.');
+  process.env.REDIS_URL = 'redis://127.0.0.1:6379';
 }

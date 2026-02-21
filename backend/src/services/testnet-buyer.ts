@@ -21,7 +21,7 @@ const TEST_MNEMONIC = process.env.LOCAL_WALLET_MNEMONIC ??
  * Get a signer for the test buyer wallet.
  * Address: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
  */
-export function getTestBuyerSigner(): ethers.Wallet {
+export function getTestBuyerSigner(): ethers.HDNodeWallet {
   const rpcUrl = process.env.RPC_URL ?? 'http://localhost:8545';
   const provider = new ethers.JsonRpcProvider(rpcUrl);
   const wallet = ethers.Wallet.fromPhrase(TEST_MNEMONIC, provider);

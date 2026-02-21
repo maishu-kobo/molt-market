@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
+import { secureHeaders } from 'hono/secure-headers';
 import { swaggerUI } from '@hono/swagger-ui';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { bodyLimit } from './middleware/body-limit.js';
@@ -22,6 +23,7 @@ export function createApp() {
 
   app.onError(handleError);
 
+  app.use('*', secureHeaders());
   app.use('*', requestLogger);
   app.use('/api/*', cors({
     origin: ['https://molt-market-dev.exe.xyz:8000', 'http://localhost:8000', 'http://localhost:5173'],

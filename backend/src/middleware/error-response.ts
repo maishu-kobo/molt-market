@@ -10,13 +10,11 @@ export function errorResponse(
   suggestedAction: string,
   details?: ErrorResponseDetails
 ) {
-  return c.json(
-    {
-      error_code: errorCode,
-      message,
-      suggested_action: suggestedAction,
-      ...(details ? { details } : {})
-    },
-    status
-  );
+  c.status(status as never);
+  return c.json({
+    error_code: errorCode,
+    message,
+    suggested_action: suggestedAction,
+    ...(details ? { details } : {})
+  });
 }

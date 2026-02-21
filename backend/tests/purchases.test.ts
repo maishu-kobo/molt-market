@@ -73,7 +73,7 @@ describe('POST /api/v1/purchases', () => {
       headers: { 'content-type': 'application/json', 'x-api-key': apiKey },
       body: JSON.stringify({
         listing_id: uuidv4(),
-        buyer_wallet: '0x1234',
+        buyer_wallet: `0x${'1'.repeat(40)}`,
         idempotency_key: 'key-1'
       })
     });
@@ -89,7 +89,7 @@ describe('POST /api/v1/purchases', () => {
       headers: { 'content-type': 'application/json', 'x-api-key': apiKey },
       body: JSON.stringify({
         listing_id: listing.id,
-        buyer_wallet: '0xbuyer',
+        buyer_wallet: `0x${'1'.repeat(40)}`,
         idempotency_key: 'purchase-1'
       })
     });
@@ -113,7 +113,7 @@ describe('POST /api/v1/purchases', () => {
 
     const payload = {
       listing_id: listing.id,
-      buyer_wallet: '0xbuyer',
+      buyer_wallet: `0x${'1'.repeat(40)}`,
       idempotency_key: 'idempotent-key'
     };
 
@@ -144,7 +144,7 @@ describe('POST /api/v1/purchases', () => {
       headers: { 'content-type': 'application/json', 'x-api-key': apiKey },
       body: JSON.stringify({
         listing_id: listing.id,
-        buyer_wallet: '0xbuyer',
+        buyer_wallet: `0x${'1'.repeat(40)}`,
         idempotency_key: 'audit-key'
       })
     });

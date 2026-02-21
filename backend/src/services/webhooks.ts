@@ -1,5 +1,5 @@
 import { pool } from '../db/index.js';
-import { webhookQueue } from '../queue/webhook-queue.js';
+import { getWebhookQueue } from '../queue/webhook-queue.js';
 
 export type WebhookRecord = {
   id: string;
@@ -29,9 +29,11 @@ export async function enqueueWebhookJobs(params: {
     return;
   }
 
+  const queue = getWebhookQueue();
+
   await Promise.all(
     webhooks.map((webhook) =>
-      webhookQueue.add(
+      queue.add(
         'deliver',
         {
           url: webhook.url,

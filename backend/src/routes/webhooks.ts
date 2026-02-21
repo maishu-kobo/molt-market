@@ -2,10 +2,18 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { pool } from '../db/index.js';
 import { errorResponse } from '../middleware/error-response.js';
+import { isWebhookUrlAllowed } from '../security/network.js';
+
+const webhookEventSchema = z.enum([
+  'listing.created',
+  'purchase.completed',
+  'payment.failed',
+  'listing.moltbook_sync_failed'
+]);
 
 const webhookSchema = z.object({
-  event_type: z.string().min(1),
-  url: z.string().url()
+  event_type: webhookEventSchema,
+  url: z.string().url().max(2048)
 });
 
 export const webhooksRouter = new Hono();
@@ -38,6 +46,16 @@ webhooksRouter.post('/', async (c) => {
   }
 
   const { event_type, url } = parsed.data;
+  if (!isWebhookUrlAllowed(url)) {
+    return errorResponse(
+      c,
+      422,
+      'invalid_webhook_url',
+      'Webhook URL is not allowed.',
+      'Use a public HTTPS URL or set ALLOW_PRIVATE_WEBHOOK_URLS/ALLOW_HTTP_WEBHOOKS in controlled environments.'
+    );
+  }
+
   const result = await pool.query(
     `
       INSERT INTO webhooks (id, event_type, url)
