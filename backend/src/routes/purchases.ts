@@ -65,22 +65,8 @@ export const purchasesRouter = new Hono();
  * Get the test buyer wallet's balances (for testnet only).
  */
 purchasesRouter.get('/testnet-buyer', async (c) => {
-  try {
-    const balances = await getTestBuyerBalances();
-    return c.json({
-      ...balances,
-      network: 'base-sepolia',
-      chain_id: 84532,
-      note: 'This is a shared test wallet. Fund via faucet if empty.'
-    });
-  } catch (err) {
-    logger.error({ err }, 'Failed to get testnet buyer balances');
-    return errorResponse(
-      c, 500, 'balance_check_failed',
-      'Failed to check testnet buyer balance.',
-      'Ensure RPC_URL is configured correctly.'
-    );
-  }
+  // Payments are disabled, return null to indicate not available
+  return c.json(null);
 });
 
 /**
