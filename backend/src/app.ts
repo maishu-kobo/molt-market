@@ -1,7 +1,9 @@
 import { Hono } from 'hono';
+import { cors } from 'hono/cors';
 import { swaggerUI } from '@hono/swagger-ui';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { bodyLimit } from './middleware/body-limit.js';
+import { rateLimitMiddleware } from './middleware/rate-limit.js';
 import { handleError } from './middleware/error-handler.js';
 import { requestLogger } from './middleware/request-logger.js';
 import { errorResponse } from './middleware/error-response.js';
@@ -21,6 +23,13 @@ export function createApp() {
   app.onError(handleError);
 
   app.use('*', requestLogger);
+  app.use('/api/*', cors({
+    origin: ['https://molt-market-dev.exe.xyz:8000', 'http://localhost:8000', 'http://localhost:5173'],
+    allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowHeaders: ['Content-Type', 'X-Agent-Signature'],
+    maxAge: 86400
+  }));
+  app.use('/api/*', rateLimitMiddleware);
   app.use('/api/*', bodyLimit(10 * 1024 * 1024));
   // No global auth - GET is public, POST/PUT/DELETE require wallet signature per-route
 
