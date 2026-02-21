@@ -16,7 +16,7 @@ jobs:
         with:
           node-version-file: .node-version
           cache: npm
-      - run: npm ci --prefix backend
+      - run: npm ci
       - run: npm run typecheck
 
   unit-test:
@@ -30,7 +30,7 @@ jobs:
         with:
           node-version-file: .node-version
           cache: npm
-      - run: npm ci --prefix backend
+      - run: npm ci
       - run: npm run test:unit
 
   build:
@@ -42,7 +42,7 @@ jobs:
         with:
           node-version-file: .node-version
           cache: npm
-      - run: npm ci --prefix backend
+      - run: npm ci
       - run: npm run build
 
   frontend-build:
