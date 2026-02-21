@@ -1,4 +1,4 @@
-.PHONY: start stop restart logs status clean setup
+.PHONY: start stop restart logs status clean setup before-commit
 
 # Start all services (infra + API + worker + frontend)
 start:
@@ -22,6 +22,12 @@ status:
 # Stop and remove volumes (full reset)
 clean:
 	docker compose down -v
+
+# Run before committing — mirrors CI checks locally
+before-commit:
+	npm run typecheck
+	npm run test:unit
+	npm run build
 
 # Install dependencies locally (for IDE support)
 setup:
