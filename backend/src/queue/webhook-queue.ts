@@ -1,6 +1,14 @@
 import { Queue } from 'bullmq';
-import { redisConnection } from './connection.js';
+import { redisConnectionOptions } from './connection.js';
 
-export const webhookQueue = new Queue('webhooks', {
-  connection: redisConnection
-});
+let webhookQueue: Queue | null = null;
+
+export function getWebhookQueue(): Queue {
+  if (!webhookQueue) {
+    webhookQueue = new Queue('webhooks', {
+      connection: redisConnectionOptions
+    });
+  }
+
+  return webhookQueue;
+}

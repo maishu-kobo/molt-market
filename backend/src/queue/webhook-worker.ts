@@ -1,6 +1,7 @@
 import { Worker } from 'bullmq';
-import { redisConnection } from './connection.js';
+import { redisConnectionOptions } from './connection.js';
 import { logger } from '../logger.js';
+import { isWebhookUrlAllowed } from '../security/network.js';
 
 export type WebhookJob = {
   url: string;
@@ -12,13 +13,19 @@ export const webhookWorker = new Worker<WebhookJob>(
   'webhooks',
   async (job) => {
     const { url, event, payload } = job.data;
+    if (!isWebhookUrlAllowed(url)) {
+      throw new Error('Webhook URL is blocked by policy');
+    }
+
     const response = await fetch(url, {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
         'user-agent': 'openclaw-marketplace-webhook'
       },
-      body: JSON.stringify({ event, payload })
+      body: JSON.stringify({ event, payload }),
+      redirect: 'error',
+      signal: AbortSignal.timeout(10_000)
     });
 
     if (!response.ok) {
@@ -27,7 +34,7 @@ export const webhookWorker = new Worker<WebhookJob>(
     }
   },
   {
-    connection: redisConnection
+    connection: redisConnectionOptions
   }
 );
 

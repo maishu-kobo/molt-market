@@ -1,5 +1,5 @@
 import { Worker } from 'bullmq';
-import { redisConnection } from './connection.js';
+import { redisConnectionOptions } from './connection.js';
 import { logger } from '../logger.js';
 import { pool } from '../db/index.js';
 import { walletSigner } from '../services/wallet-signer.js';
@@ -71,7 +71,7 @@ export const autoPaymentWorker = new Worker<AutoPaymentJob>(
     logger.info({ autoPaymentId: auto_payment_id, txHash }, 'Auto-payment completed');
   },
   {
-    connection: redisConnection,
+    connection: redisConnectionOptions,
     concurrency: 3
   }
 );

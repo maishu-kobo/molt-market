@@ -1,381 +1,356 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { pool } from '../db/index.js';
+import { ethers } from 'ethers';
+import { logger as baseLogger } from '../logger.js';
 import { errorResponse } from '../middleware/error-response.js';
-import { logger } from '../logger.js';
+import { createPostgresPurchaseRepository } from '../repositories/purchase-repository.js';
+import { recordAuditLog } from '../services/audit-log.js';
+import {
+  createPurchaseService,
+  type PurchaseListFilters,
+  type PurchaseService
+} from '../services/purchase-service.js';
+import { executeTestnetPurchase, getTestBuyerBalances } from '../services/testnet-buyer.js';
+import { enqueueWebhookJobs } from '../services/webhooks.js';
 
-// ============================================
-// ⚠️  PAYMENTS DISABLED - SECURITY ISSUE
-// ============================================
-// Current architecture is NOT production safe:
-// - Server holds all agent private keys (via shared mnemonic)
-// - KMS integration claimed in docs but NOT implemented
-// - Anyone with server access can drain all wallets
-//
-// Proper Web3 architecture requires:
-// - Agents generate and hold their OWN private keys
-// - Server only stores public wallet addresses  
-// - All transactions signed client-side by agents
-// ============================================
+const walletAddressSchema = z
+  .string()
+  .regex(/^0x[a-fA-F0-9]{40}$/, 'Must be a 20-byte hex wallet address.')
+  .refine((value) => ethers.isAddress(value), 'Invalid wallet address checksum or format.');
 
-// Allowed testnet chain IDs
-const ALLOWED_TESTNETS = [
-  84532,  // Base Sepolia
-  11155111, // Ethereum Sepolia  
-  31337,  // Anvil/Hardhat local
-];
-
-// Check if we're on a testnet at startup
-let isTestnet = false;
-let currentChainId = 0;
-
-async function checkNetwork() {
-  try {
-    const { ethers } = await import('ethers');
-    const rpcUrl = process.env.RPC_URL ?? 'http://localhost:8545';
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
-    const network = await provider.getNetwork();
-    currentChainId = Number(network.chainId);
-    isTestnet = ALLOWED_TESTNETS.includes(currentChainId);
-    console.log(`[Payments] Chain ID: ${currentChainId}, Testnet: ${isTestnet}`);
-  } catch (err) {
-    console.error('[Payments] Failed to check network:', err);
-    isTestnet = false;
-  }
-}
-checkNetwork();
+const idempotencyKeySchema = z
+  .string()
+  .min(8)
+  .max(128)
+  .regex(/^[A-Za-z0-9:_-]+$/, 'idempotency_key must use only A-Z, a-z, 0-9, :, _, -');
 
 const purchaseSchema = z.object({
   listing_id: z.string().uuid(),
-  buyer_wallet: z.string().min(1),
-  idempotency_key: z.string().min(1)
+  buyer_wallet: walletAddressSchema,
+  idempotency_key: idempotencyKeySchema
 });
 
 const autoPaymentSchema = z.object({
-  recipient_address: z.string().min(1),
-  amount_usdc: z.union([z.number(), z.string()]).transform((v) => String(v)),
+  recipient_address: walletAddressSchema,
+  amount_usdc: z.union([z.number(), z.string()]).transform((value) => String(value)),
   interval_seconds: z.number().int().min(60),
-  description: z.string().optional()
+  description: z.string().max(500).optional()
 });
 
-export const purchasesRouter = new Hono();
+const uuidSchema = z.string().uuid();
+const statusSchema = z.enum(['completed', 'failed', 'pending']);
 
-/**
- * GET /api/v1/purchases/testnet-buyer
- * Get the test buyer wallet's balances (for testnet only).
- */
-purchasesRouter.get('/testnet-buyer', async (c) => {
-  // Payments are disabled, return null to indicate not available
-  return c.json(null);
-});
+type PurchasesRouterDeps = {
+  purchaseService?: PurchaseService;
+  paymentsDisabled?: boolean;
+  getTestBuyerBalancesFn?: () => Promise<{
+    address: string;
+    ethBalance: string;
+    usdcBalance: string;
+  }>;
+  logger?: Pick<typeof baseLogger, 'info' | 'warn' | 'error'>;
+};
 
-/**
- * POST /api/v1/purchases
- * Execute a USDC purchase for a listing. The buyer_wallet sends USDC
- * to the seller agent's wallet. Idempotency is enforced via
- * idempotency_key unique constraint.
- *
- * In the MVP the buyer must have already approved the USDC transfer
- * or we use Anvil's impersonation. The transaction is executed
- * on-chain via the seller agent's WalletSigner.
- */
-purchasesRouter.post('/', async (c) => {
-  // DISABLED: Payment functionality not production safe
-  if (PAYMENTS_DISABLED) {
-    return errorResponse(
-      c, 503, 'payments_disabled',
-      'Payment functionality is disabled. Server-side key management is not secure.',
-      'Use reviews and stars to evaluate products. Payments require proper Web3 key management.'
-    );
+function parsePositiveInteger(
+  value: string | undefined,
+  defaultValue: number,
+  maxValue: number
+): number | null {
+  if (value === undefined) {
+    return defaultValue;
   }
 
-  let body: unknown;
-  try {
-    body = await c.req.json();
-  } catch {
-    return errorResponse(
-      c, 400, 'invalid_json',
-      'Request body must be valid JSON.',
-      'Ensure the request body is valid JSON.'
-    );
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    return null;
   }
 
-  const parsed = purchaseSchema.safeParse(body);
-  if (!parsed.success) {
-    const fields = parsed.error.flatten().fieldErrors;
-    return errorResponse(
-      c, 422, 'validation_error',
-      'Missing or invalid fields in request body.',
-      'Fix the highlighted fields and retry.',
-      { fields }
-    );
+  return Math.min(parsed, maxValue);
+}
+
+function parseNonNegativeInteger(value: string | undefined, defaultValue: number): number | null {
+  if (value === undefined) {
+    return defaultValue;
   }
 
-  const { listing_id, buyer_wallet, idempotency_key } = parsed.data;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 0) {
+    return null;
+  }
 
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
+  return parsed;
+}
 
-    // Check idempotency: if a purchase with this key exists, return it
-    const existingResult = await client.query(
-      'SELECT * FROM purchases WHERE idempotency_key = $1',
-      [idempotency_key]
-    );
-    if (existingResult.rowCount && existingResult.rowCount > 0) {
-      await client.query('ROLLBACK');
-      return c.json(existingResult.rows[0], 200);
-    }
+function createDefaultPurchaseService(): PurchaseService {
+  const repository = createPostgresPurchaseRepository();
 
-    // Fetch listing
-    const listingResult = await client.query(
-      'SELECT * FROM listings WHERE id = $1 AND status = $2',
-      [listing_id, 'active']
-    );
-    if (listingResult.rowCount === 0) {
-      await client.query('ROLLBACK');
-      return errorResponse(
-        c, 404, 'listing_not_found',
-        'Active listing not found.',
-        'Check the listing ID and ensure it is active.'
-      );
-    }
-    const listing = listingResult.rows[0];
+  return createPurchaseService({
+    paymentsDisabled: process.env.PAYMENTS_DISABLED === 'true',
+    repository,
+    paymentExecutor: {
+      async execute(params) {
+        if (!process.env.USDC_CONTRACT_ADDRESS) {
+          baseLogger.warn('USDC_CONTRACT_ADDRESS not set, simulating transaction');
+          return {
+            txHash: `sim:${params.purchaseId}`,
+            buyerWallet: params.buyerWallet
+          };
+        }
 
-    // Fetch seller agent
-    const agentResult = await client.query(
-      'SELECT * FROM agents WHERE id = $1',
-      [listing.agent_id]
-    );
-    if (agentResult.rowCount === 0) {
-      await client.query('ROLLBACK');
-      return errorResponse(
-        c, 404, 'agent_not_found',
-        'Seller agent not found.',
-        'The listing references a non-existent agent.'
-      );
-    }
-    const sellerAgent = agentResult.rows[0];
-
-    // Insert purchase record in pending state
-    const purchaseResult = await client.query(
-      `INSERT INTO purchases (id, listing_id, buyer_wallet, seller_agent_id, amount_usdc, status, idempotency_key)
-       VALUES (gen_random_uuid(), $1, $2, $3, $4, 'pending', $5)
-       RETURNING *`,
-      [listing_id, buyer_wallet, sellerAgent.id, listing.price_usdc, idempotency_key]
-    );
-    const purchase = purchaseResult.rows[0];
-
-    await client.query('COMMIT');
-
-    // Execute on-chain transfer (outside DB transaction)
-    let txHash: string;
-    let actualBuyerWallet = buyer_wallet;
-    try {
-      if (process.env.USDC_CONTRACT_ADDRESS) {
-        // Use testnet buyer wallet for Base Sepolia
-        // In production, this would require buyer's signature via frontend
         const result = await executeTestnetPurchase(
-          sellerAgent.wallet_address,
-          String(listing.price_usdc)
+          params.sellerWalletAddress,
+          params.amountUsdc
         );
-        txHash = result.txHash;
-        actualBuyerWallet = result.buyerAddress;
-        logger.info({ txHash, seller: sellerAgent.wallet_address }, 'Testnet USDC purchase completed');
-      } else {
-        // No USDC contract deployed - record as simulated
-        txHash = `sim:${purchase.id}`;
-        logger.warn('USDC_CONTRACT_ADDRESS not set, simulating transaction');
-      }
-    } catch (err) {
-      // Mark as failed
-      await pool.query(
-        "UPDATE purchases SET status = 'failed' WHERE id = $1",
-        [purchase.id]
-      );
-      logger.error({ err, purchaseId: purchase.id }, 'On-chain transfer failed');
+        baseLogger.info(
+          { txHash: result.txHash, seller: params.sellerWalletAddress },
+          'Testnet USDC purchase completed'
+        );
 
-      // Fire payment.failed webhook
-      const webhooks = await pool.query(
-        "SELECT id, event_type, url FROM webhooks WHERE event_type = 'payment.failed' AND is_active = true"
-      );
-      if (webhooks.rowCount && webhooks.rowCount > 0) {
-        await enqueueWebhookJobs({
-          event: 'payment.failed',
-          payload: { purchase_id: purchase.id, listing_id, error: String(err) },
-          webhooks: webhooks.rows
+        return {
+          txHash: result.txHash,
+          buyerWallet: result.buyerAddress
+        };
+      }
+    },
+    auditLogs: {
+      async record(params) {
+        await recordAuditLog({
+          agentId: params.agentId,
+          action: params.action,
+          metadata: params.metadata
         });
       }
+    },
+    webhookPublisher: {
+      async publish(params) {
+        await enqueueWebhookJobs(params);
+      }
+    },
+    logger: baseLogger
+  });
+}
 
+export function createPurchasesRouter(deps: PurchasesRouterDeps = {}): Hono {
+  const purchaseService = deps.purchaseService ?? createDefaultPurchaseService();
+  const paymentsDisabled = deps.paymentsDisabled ?? process.env.PAYMENTS_DISABLED === 'true';
+  const fetchTestBuyerBalances = deps.getTestBuyerBalancesFn ?? getTestBuyerBalances;
+  const logger = deps.logger ?? baseLogger;
+  const router = new Hono();
+
+  /**
+   * GET /api/v1/purchases/testnet-buyer
+   * Get test buyer wallet balances on testnet.
+   */
+  router.get('/testnet-buyer', async (c) => {
+    if (paymentsDisabled) {
+      return c.json(null);
+    }
+
+    try {
+      const balances = await fetchTestBuyerBalances();
+      return c.json(balances);
+    } catch (err) {
+      logger.error({ err }, 'Failed to fetch test buyer balances');
       return errorResponse(
-        c, 502, 'payment_failed',
-        'On-chain USDC transfer failed.',
-        'Check wallet balance and retry.'
+        c,
+        502,
+        'testnet_wallet_unavailable',
+        'Failed to fetch testnet buyer wallet balances.',
+        'Verify RPC and USDC configuration, then retry.'
+      );
+    }
+  });
+
+  /**
+   * POST /api/v1/purchases
+   * Create a purchase and execute payment (or simulation).
+   */
+  router.post('/', async (c) => {
+    let body: unknown;
+    try {
+      body = await c.req.json();
+    } catch {
+      return errorResponse(
+        c,
+        400,
+        'invalid_json',
+        'Request body must be valid JSON.',
+        'Ensure the request body is valid JSON.'
       );
     }
 
-    // Update purchase with tx_hash, actual buyer wallet, and completed status
-    const updatedResult = await pool.query(
-      "UPDATE purchases SET status = 'completed', tx_hash = $1, buyer_wallet = $2 WHERE id = $3 RETURNING *",
-      [txHash, actualBuyerWallet, purchase.id]
-    );
+    const parsed = purchaseSchema.safeParse(body);
+    if (!parsed.success) {
+      const fields = parsed.error.flatten().fieldErrors;
+      return errorResponse(
+        c,
+        422,
+        'validation_error',
+        'Missing or invalid fields in request body.',
+        'Fix the highlighted fields and retry.',
+        { fields }
+      );
+    }
 
-    await recordAuditLog({
-      agentId: sellerAgent.id,
-      action: 'purchase.completed',
-      metadata: { purchase_id: purchase.id, tx_hash: txHash, amount_usdc: listing.price_usdc }
+    const result = await purchaseService.createPurchase({
+      listingId: parsed.data.listing_id,
+      buyerWallet: parsed.data.buyer_wallet,
+      idempotencyKey: parsed.data.idempotency_key
     });
 
-    // Fire purchase.completed webhook
-    const webhooks = await pool.query(
-      "SELECT id, event_type, url FROM webhooks WHERE event_type = 'purchase.completed' AND is_active = true"
-    );
-    if (webhooks.rowCount && webhooks.rowCount > 0) {
-      await enqueueWebhookJobs({
-        event: 'purchase.completed',
-        payload: updatedResult.rows[0],
-        webhooks: webhooks.rows
-      });
+    if (!result.ok) {
+      return errorResponse(
+        c,
+        result.error.status,
+        result.error.errorCode,
+        result.error.message,
+        result.error.suggestedAction,
+        result.error.details
+      );
     }
 
-    return c.json(updatedResult.rows[0], 201);
-  } catch (err: unknown) {
-    await client.query('ROLLBACK');
+    return c.json(result.data, result.status as 200 | 201);
+  });
 
-    if (err && typeof err === 'object' && 'code' in err) {
-      const code = (err as { code?: string }).code;
-      if (code === '23505') {
-        // Idempotency key collision
-        const existing = await pool.query(
-          'SELECT * FROM purchases WHERE idempotency_key = $1',
-          [idempotency_key]
-        );
-        if (existing.rowCount && existing.rowCount > 0) {
-          return c.json(existing.rows[0], 200);
-        }
-      }
+  /**
+   * POST /api/v1/agents/:id/auto-payments
+   * Register an automatic payment schedule for an agent.
+   */
+  router.post('/:id/auto-payments', async (c) => {
+    const agentId = c.req.param('id');
+    if (!uuidSchema.safeParse(agentId).success) {
+      return errorResponse(
+        c,
+        400,
+        'invalid_id',
+        'Agent ID must be a valid UUID.',
+        'Provide a valid UUID.'
+      );
     }
 
-    logger.error({ err }, 'Failed to create purchase');
-    return errorResponse(
-      c, 500, 'purchase_create_failed',
-      'Failed to create purchase.',
-      'Retry later or contact support.'
-    );
-  } finally {
-    client.release();
-  }
-});
+    let body: unknown;
+    try {
+      body = await c.req.json();
+    } catch {
+      return errorResponse(
+        c,
+        400,
+        'invalid_json',
+        'Request body must be valid JSON.',
+        'Ensure the request body is valid JSON.'
+      );
+    }
 
-/**
- * POST /api/v1/agents/:id/auto-payments
- * Register an automatic payment schedule for an agent.
- * Stored in a new auto_payments table. The actual execution
- * would be handled by a cron/BullMQ recurring job.
- */
-purchasesRouter.post('/:id/auto-payments', async (c) => {
-  // Note: This endpoint is mounted under /api/v1/agents via app.ts
-  // so :id is the agent_id
-  const agentId = c.req.param('id');
-  if (!z.string().uuid().safeParse(agentId).success) {
-    return errorResponse(
-      c, 400, 'invalid_id',
-      'Agent ID must be a valid UUID.',
-      'Provide a valid UUID.'
-    );
-  }
+    const parsed = autoPaymentSchema.safeParse(body);
+    if (!parsed.success) {
+      const fields = parsed.error.flatten().fieldErrors;
+      return errorResponse(
+        c,
+        422,
+        'validation_error',
+        'Missing or invalid fields.',
+        'Fix the highlighted fields and retry.',
+        { fields }
+      );
+    }
 
-  let body: unknown;
-  try {
-    body = await c.req.json();
-  } catch {
-    return errorResponse(
-      c, 400, 'invalid_json',
-      'Request body must be valid JSON.',
-      'Ensure the request body is valid JSON.'
-    );
-  }
+    const result = await purchaseService.createAutoPayment({
+      agentId,
+      recipientAddress: parsed.data.recipient_address,
+      amountUsdc: parsed.data.amount_usdc,
+      intervalSeconds: parsed.data.interval_seconds,
+      description: parsed.data.description
+    });
 
-  const parsed = autoPaymentSchema.safeParse(body);
-  if (!parsed.success) {
-    const fields = parsed.error.flatten().fieldErrors;
-    return errorResponse(
-      c, 422, 'validation_error',
-      'Missing or invalid fields.',
-      'Fix the highlighted fields and retry.',
-      { fields }
-    );
-  }
+    if (!result.ok) {
+      return errorResponse(
+        c,
+        result.error.status,
+        result.error.errorCode,
+        result.error.message,
+        result.error.suggestedAction,
+        result.error.details
+      );
+    }
 
-  // Verify agent exists
-  const agentResult = await pool.query('SELECT id FROM agents WHERE id = $1', [agentId]);
-  if (agentResult.rowCount === 0) {
-    return errorResponse(
-      c, 404, 'agent_not_found',
-      'Agent not found.',
-      'Check the agent ID and try again.'
-    );
-  }
-
-  const { recipient_address, amount_usdc, interval_seconds, description } = parsed.data;
-
-  const result = await pool.query(
-    `INSERT INTO auto_payments (id, agent_id, recipient_address, amount_usdc, interval_seconds, description)
-     VALUES (gen_random_uuid(), $1, $2, $3, $4, $5)
-     RETURNING *`,
-    [agentId, recipient_address, amount_usdc, interval_seconds, description ?? null]
-  );
-
-  await recordAuditLog({
-    agentId,
-    action: 'auto_payment.created',
-    metadata: { auto_payment_id: result.rows[0].id, amount_usdc, interval_seconds }
+    return c.json(result.data, result.status as 201);
   });
 
-  return c.json(result.rows[0], 201);
-});
+  /**
+   * GET /api/v1/purchases
+   * List all purchases with optional filtering and pagination.
+   */
+  router.get('/', async (c) => {
+    const limit = parsePositiveInteger(c.req.query('limit'), 50, 100);
+    const offset = parseNonNegativeInteger(c.req.query('offset'), 0);
 
-/**
- * GET /api/v1/purchases
- * List all purchases with optional filtering
- */
-purchasesRouter.get('/', async (c) => {
-  const limit = Math.min(Number(c.req.query('limit') ?? 50), 100);
-  const offset = Number(c.req.query('offset') ?? 0);
-  const status = c.req.query('status'); // completed, failed, pending
-  const listing_id = c.req.query('listing_id');
-  const buyer_wallet = c.req.query('buyer_wallet');
+    if (limit === null || offset === null) {
+      return errorResponse(
+        c,
+        400,
+        'invalid_pagination',
+        'Invalid pagination parameters.',
+        'Provide positive limit and non-negative offset.'
+      );
+    }
 
-  let query = `
-    SELECT p.*, l.title as listing_title, l.product_type, a.name as seller_name
-    FROM purchases p
-    LEFT JOIN listings l ON p.listing_id = l.id
-    LEFT JOIN agents a ON p.seller_agent_id = a.id
-    WHERE 1=1
-  `;
-  const params: (string | number)[] = [];
-  let paramIndex = 1;
+    const status = c.req.query('status');
+    if (status !== undefined && !statusSchema.safeParse(status).success) {
+      return errorResponse(
+        c,
+        400,
+        'invalid_status',
+        'Invalid status filter.',
+        'Use one of: completed, failed, pending.'
+      );
+    }
 
-  if (status) {
-    query += ` AND p.status = $${paramIndex++}`;
-    params.push(status);
-  }
-  if (listing_id) {
-    query += ` AND p.listing_id = $${paramIndex++}`;
-    params.push(listing_id);
-  }
-  if (buyer_wallet) {
-    query += ` AND p.buyer_wallet = $${paramIndex++}`;
-    params.push(buyer_wallet);
-  }
+    const listingId = c.req.query('listing_id');
+    if (listingId !== undefined && !uuidSchema.safeParse(listingId).success) {
+      return errorResponse(
+        c,
+        400,
+        'invalid_listing_id',
+        'listing_id must be a valid UUID.',
+        'Provide a valid listing_id value.'
+      );
+    }
 
-  query += ` ORDER BY p.created_at DESC LIMIT $${paramIndex++} OFFSET $${paramIndex++}`;
-  params.push(limit, offset);
+    const buyerWallet = c.req.query('buyer_wallet');
+    if (buyerWallet !== undefined && !walletAddressSchema.safeParse(buyerWallet).success) {
+      return errorResponse(
+        c,
+        400,
+        'invalid_buyer_wallet',
+        'buyer_wallet must be a valid EVM address.',
+        'Provide a valid buyer_wallet value.'
+      );
+    }
 
-  const result = await pool.query(query, params);
+    const filters: PurchaseListFilters = {
+      limit,
+      offset,
+      ...(status ? { status } : {}),
+      ...(listingId ? { listingId } : {}),
+      ...(buyerWallet ? { buyerWallet } : {})
+    };
 
-  return c.json({
-    data: result.rows,
-    pagination: { limit, offset, count: result.rows.length }
+    const result = await purchaseService.listPurchases(filters);
+    if (!result.ok) {
+      return errorResponse(
+        c,
+        result.error.status,
+        result.error.errorCode,
+        result.error.message,
+        result.error.suggestedAction,
+        result.error.details
+      );
+    }
+
+    return c.json(result.data);
   });
-});
+
+  return router;
+}
+
+export const purchasesRouter = createPurchasesRouter();

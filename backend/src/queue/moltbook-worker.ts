@@ -1,5 +1,5 @@
 import { Worker } from 'bullmq';
-import { redisConnection } from './connection.js';
+import { redisConnectionOptions } from './connection.js';
 import { logger } from '../logger.js';
 import {
   registerOnMoltbook,
@@ -54,7 +54,7 @@ export const moltbookWorker = new Worker<MoltbookSyncJob>(
     await linkMoltbookToListing(listing.id, result.moltbook_id, listing.agent_id);
   },
   {
-    connection: redisConnection,
+    connection: redisConnectionOptions,
     concurrency: 5
   }
 );
