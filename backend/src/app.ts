@@ -7,6 +7,7 @@ import { bodyLimit } from './middleware/body-limit.js';
 import { rateLimitMiddleware } from './middleware/rate-limit.js';
 import { handleError } from './middleware/error-handler.js';
 import { requestLogger } from './middleware/request-logger.js';
+import { experimentContext } from './middleware/experiment-context.js';
 import { errorResponse } from './middleware/error-response.js';
 import { openApiSpec } from './openapi.js';
 // Note: API key auth removed - using wallet signatures for write operations
@@ -17,6 +18,7 @@ import { moltbookRouter } from './routes/moltbook.js';
 import { purchasesRouter } from './routes/purchases.js';
 import { webhooksRouter } from './routes/webhooks.js';
 import { launchesRouter } from './routes/launches.js';
+import { experimentsRouter } from './routes/experiments.js';
 
 export function createApp() {
   const app = new Hono();
@@ -24,11 +26,12 @@ export function createApp() {
   app.onError(handleError);
 
   app.use('*', secureHeaders());
+  app.use('*', experimentContext);
   app.use('*', requestLogger);
   app.use('/api/*', cors({
     origin: ['https://molt-market-dev.exe.xyz:8000', 'http://localhost:8000', 'http://localhost:5173'],
     allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowHeaders: ['Content-Type', 'X-Agent-Signature'],
+    allowHeaders: ['Content-Type', 'X-Agent-Signature', 'X-Experiment-Id', 'X-Experiment-Condition', 'X-Agent-Id', 'X-Session-Id'],
     maxAge: 86400
   }));
   app.use('/api/*', rateLimitMiddleware);
@@ -47,6 +50,7 @@ export function createApp() {
   app.route('/api/v1/agents', agentsRouter);
   app.route('/api/v1/purchases', purchasesRouter);
   app.route('/api/v1/listings/:id/reviews', reviewsRouter);
+  app.route('/api/v1/experiments', experimentsRouter);
 
   // Serve static files
   app.use('/*', serveStatic({ root: '../public' }));

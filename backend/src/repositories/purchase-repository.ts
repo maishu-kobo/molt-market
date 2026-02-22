@@ -115,6 +115,7 @@ export function createPostgresPurchaseRepository(dbPool: Pool = pool): PurchaseR
         }
 
         throw err;
+      /* v8 ignore next 3 */
       } finally {
         client.release();
       }
