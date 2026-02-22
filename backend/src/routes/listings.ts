@@ -7,6 +7,7 @@ import { recordAuditLog } from '../services/audit-log.js';
 import { enqueueWebhookJobs } from '../services/webhooks.js';
 import { enqueueMoltbookSync } from '../services/moltbook-sync.js';
 import { logger } from '../logger.js';
+import { recordExperimentEvent, ExperimentEventName, buildEventBase } from '../services/experiment-events.js';
 
 const listingSchema = z.object({
   agent_id: z.string().uuid(),
@@ -255,6 +256,15 @@ listingsRouter.get('/:id', async (c) => {
     );
   }
 
+  const experiment = c.var.experiment;
+  if (experiment) {
+    await recordExperimentEvent({
+      ...buildEventBase(experiment),
+      event: ExperimentEventName.VIEW_PRODUCT,
+      product_id: id,
+    });
+  }
+
   return c.json(result.rows[0]);
 });
 
@@ -319,6 +329,15 @@ listingsRouter.get('/', async (c) => {
   `;
 
   const result = await pool.query(query, values);
+
+  const experiment = c.var.experiment;
+  if (experiment) {
+    await recordExperimentEvent({
+      ...buildEventBase(experiment),
+      event: ExperimentEventName.LIST_PRODUCTS,
+      metadata: { count: result.rows.length },
+    });
+  }
 
   return c.json({
     data: result.rows,

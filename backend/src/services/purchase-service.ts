@@ -1,5 +1,12 @@
 import type { ErrorResponseDetails } from '../middleware/error-response.js';
 import type { WebhookRecord } from './webhooks.js';
+import {
+  type ExperimentContext,
+  recordExperimentEvent,
+  ExperimentEventName,
+  buildEventBase,
+} from './experiment-events.js';
+import { enqueueTxVerification } from '../queue/tx-verification-queue.js';
 
 export type ServiceResult<T> =
   | {
@@ -154,7 +161,7 @@ export type PurchaseServiceOptions = {
 };
 
 export interface PurchaseService {
-  createPurchase(input: PurchaseCreateInput): Promise<ServiceResult<PurchaseRecord>>;
+  createPurchase(input: PurchaseCreateInput, experimentCtx?: ExperimentContext): Promise<ServiceResult<PurchaseRecord>>;
   createAutoPayment(input: AutoPaymentCreateInput): Promise<ServiceResult<AutoPaymentRecord>>;
   listPurchases(filters: PurchaseListFilters): Promise<ServiceResult<PurchaseListResponse>>;
 }
@@ -181,6 +188,7 @@ function failure(
       errorCode,
       message,
       suggestedAction,
+      /* v8 ignore next */
       ...(details ? { details } : {})
     }
   };
@@ -228,7 +236,7 @@ export function createPurchaseService(options: PurchaseServiceOptions): Purchase
   }
 
   return {
-    async createPurchase(input) {
+    async createPurchase(input, experimentCtx) {
       if (paymentsDisabled) {
         return failure(
           503,
@@ -277,6 +285,15 @@ export function createPurchaseService(options: PurchaseServiceOptions): Purchase
       const listing = prepared.listing;
       const sellerAgent = prepared.sellerAgent;
 
+      if (experimentCtx) {
+        await recordExperimentEvent({
+          ...buildEventBase(experimentCtx),
+          event: ExperimentEventName.ATTEMPT_PURCHASE,
+          product_id: listing.id,
+          price_usdc: listing.price_usdc,
+        });
+      }
+
       let paymentResult: { txHash: string; buyerWallet: string };
       try {
         paymentResult = await paymentExecutor.execute({
@@ -286,6 +303,16 @@ export function createPurchaseService(options: PurchaseServiceOptions): Purchase
           buyerWallet: input.buyerWallet
         });
       } catch (err) {
+        if (experimentCtx) {
+          await recordExperimentEvent({
+            ...buildEventBase(experimentCtx),
+            event: ExperimentEventName.PURCHASE_FAILED,
+            product_id: listing.id,
+            price_usdc: listing.price_usdc,
+            reason: asErrorMessage(err),
+          });
+        }
+
         await repository.markPurchaseFailed(pendingPurchase.id).catch((markFailedErr) => {
           logger.error(
             { err: markFailedErr, purchaseId: pendingPurchase.id },
@@ -306,6 +333,19 @@ export function createPurchaseService(options: PurchaseServiceOptions): Purchase
           'On-chain USDC transfer failed.',
           'Check wallet balance and retry.'
         );
+      }
+
+      if (experimentCtx) {
+        await recordExperimentEvent({
+          ...buildEventBase(experimentCtx),
+          event: ExperimentEventName.TX_SUBMITTED,
+          product_id: listing.id,
+          tx_hash: paymentResult.txHash,
+        });
+        await enqueueTxVerification({
+          txHash: paymentResult.txHash,
+          experimentId: experimentCtx.experiment_id,
+        });
       }
 
       let completedPurchase: PurchaseRecord;
@@ -334,6 +374,16 @@ export function createPurchaseService(options: PurchaseServiceOptions): Purchase
           amount_usdc: listing.price_usdc
         }
       });
+
+      if (experimentCtx) {
+        await recordExperimentEvent({
+          ...buildEventBase(experimentCtx),
+          event: ExperimentEventName.PURCHASE_SUCCESS,
+          product_id: listing.id,
+          tx_hash: paymentResult.txHash,
+          status: 'completed',
+        });
+      }
 
       await emitWebhook('purchase.completed', completedPurchase);
       return success(201, completedPurchase);
