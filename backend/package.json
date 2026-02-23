@@ -11,8 +11,8 @@
     "worker": "tsx src/worker.ts",
     "retention": "tsx src/retention-worker.ts",
     "test": "vitest run",
-    "test:unit": "vitest run tests/purchase-service.test.ts tests/purchase-repository.test.ts tests/purchases-route.test.ts tests/network-security.test.ts",
-    "test:coverage": "vitest run tests/purchase-service.test.ts tests/purchase-repository.test.ts tests/purchases-route.test.ts tests/network-security.test.ts --coverage",
+    "test:unit": "vitest run tests/purchase-service.test.ts tests/purchase-repository.test.ts tests/purchases-route.test.ts tests/network-security.test.ts tests/experiment-events.test.ts tests/experiment-context.test.ts tests/experiment-budget.test.ts tests/experiment-tasks.test.ts tests/experiments-route.test.ts tests/deadline-checker.test.ts tests/tx-verification-queue.test.ts",
+    "test:coverage": "vitest run tests/purchase-service.test.ts tests/purchase-repository.test.ts tests/purchases-route.test.ts tests/network-security.test.ts tests/experiment-events.test.ts tests/experiment-context.test.ts tests/experiment-budget.test.ts tests/experiment-tasks.test.ts tests/experiments-route.test.ts tests/deadline-checker.test.ts tests/tx-verification-queue.test.ts --coverage",
     "security:audit": "npm audit --audit-level=high",
     "migrate": "node-pg-migrate -c node-pg-migrate.json up",
     "migrate:down": "node-pg-migrate -c node-pg-migrate.json down"

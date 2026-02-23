@@ -1,4 +1,30 @@
 import { describe, expect, it, vi } from 'vitest';
+
+const { mockRecordExperimentEvent, mockEnqueueTxVerification } = vi.hoisted(() => ({
+  mockRecordExperimentEvent: vi.fn(),
+  mockEnqueueTxVerification: vi.fn(),
+}));
+
+vi.mock('../src/services/experiment-events.js', () => ({
+  recordExperimentEvent: mockRecordExperimentEvent,
+  ExperimentEventName: {
+    ATTEMPT_PURCHASE: 'attempt_purchase',
+    TX_SUBMITTED: 'tx_submitted',
+    PURCHASE_SUCCESS: 'purchase_success',
+    PURCHASE_FAILED: 'purchase_failed',
+  },
+  buildEventBase: (ctx: Record<string, string>) => ({
+    experiment_id: ctx.experiment_id,
+    condition: ctx.condition,
+    agent_id: ctx.agent_id,
+    session_id: ctx.session_id,
+  }),
+}));
+
+vi.mock('../src/queue/tx-verification-queue.js', () => ({
+  enqueueTxVerification: mockEnqueueTxVerification,
+}));
+
 import {
   createPurchaseService,
   type AgentRecord,
@@ -401,5 +427,87 @@ describe('createPurchaseService', () => {
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error('expected failure');
     expect(result.error.errorCode).toBe('purchase_list_failed');
+  });
+
+  it('records experiment events on successful purchase with context', async () => {
+    const fixture = buildFixture();
+    mockRecordExperimentEvent.mockClear();
+    mockEnqueueTxVerification.mockClear();
+    mockRecordExperimentEvent.mockResolvedValue(undefined);
+    mockEnqueueTxVerification.mockResolvedValue(undefined);
+
+    const experimentCtx = {
+      experiment_id: 'exp-1',
+      condition: 'A',
+      agent_id: 'agent-x',
+      session_id: 'sess-1',
+    };
+
+    const result = await fixture.service.createPurchase(
+      {
+        listingId: 'listing-1',
+        buyerWallet: `0x${'1'.repeat(40)}`,
+        idempotencyKey: 'idem-1'
+      },
+      experimentCtx
+    );
+
+    expect(result.ok).toBe(true);
+    // Should have recorded: attempt_purchase, tx_submitted, purchase_success
+    expect(mockRecordExperimentEvent).toHaveBeenCalledTimes(3);
+    expect(mockRecordExperimentEvent.mock.calls[0][0].event).toBe('attempt_purchase');
+    expect(mockRecordExperimentEvent.mock.calls[1][0].event).toBe('tx_submitted');
+    expect(mockRecordExperimentEvent.mock.calls[2][0].event).toBe('purchase_success');
+    expect(mockEnqueueTxVerification).toHaveBeenCalledWith({
+      txHash: '0xhash',
+      experimentId: 'exp-1',
+    });
+  });
+
+  it('records purchase_failed experiment event when payment fails', async () => {
+    const fixture = buildFixture();
+    mockRecordExperimentEvent.mockClear();
+    mockEnqueueTxVerification.mockClear();
+    mockRecordExperimentEvent.mockResolvedValue(undefined);
+    fixture.paymentExecutor.execute.mockRejectedValue(new Error('out of gas'));
+
+    const experimentCtx = {
+      experiment_id: 'exp-2',
+      condition: 'B',
+      agent_id: 'agent-y',
+      session_id: 'sess-2',
+    };
+
+    const result = await fixture.service.createPurchase(
+      {
+        listingId: 'listing-1',
+        buyerWallet: `0x${'1'.repeat(40)}`,
+        idempotencyKey: 'idem-1'
+      },
+      experimentCtx
+    );
+
+    expect(result.ok).toBe(false);
+    // Should have recorded: attempt_purchase, purchase_failed
+    expect(mockRecordExperimentEvent).toHaveBeenCalledTimes(2);
+    expect(mockRecordExperimentEvent.mock.calls[0][0].event).toBe('attempt_purchase');
+    expect(mockRecordExperimentEvent.mock.calls[1][0].event).toBe('purchase_failed');
+    expect(mockRecordExperimentEvent.mock.calls[1][0].reason).toBe('out of gas');
+  });
+
+  it('does not record experiment events when experimentCtx is undefined', async () => {
+    const fixture = buildFixture();
+    mockRecordExperimentEvent.mockClear();
+    mockEnqueueTxVerification.mockClear();
+
+    const result = await fixture.service.createPurchase({
+      listingId: 'listing-1',
+      buyerWallet: `0x${'1'.repeat(40)}`,
+      idempotencyKey: 'idem-1'
+    });
+
+    expect(result.ok).toBe(true);
+    expect(mockRecordExperimentEvent).not.toHaveBeenCalled();
+    expect(mockEnqueueTxVerification).not.toHaveBeenCalled();
   });
 });

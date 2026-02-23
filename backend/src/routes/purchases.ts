@@ -192,11 +192,14 @@ export function createPurchasesRouter(deps: PurchasesRouterDeps = {}): Hono {
       );
     }
 
-    const result = await purchaseService.createPurchase({
-      listingId: parsed.data.listing_id,
-      buyerWallet: parsed.data.buyer_wallet,
-      idempotencyKey: parsed.data.idempotency_key
-    });
+    const result = await purchaseService.createPurchase(
+      {
+        listingId: parsed.data.listing_id,
+        buyerWallet: parsed.data.buyer_wallet,
+        idempotencyKey: parsed.data.idempotency_key,
+      },
+      c.var.experiment
+    );
 
     if (!result.ok) {
       return errorResponse(

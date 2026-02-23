@@ -6,10 +6,17 @@ export const requestLogger: MiddlewareHandler = async (c, next) => {
   await next();
   const durationMs = Date.now() - start;
 
+  const experiment = c.var.experiment;
   logger.info({
     method: c.req.method,
     path: c.req.path,
     status: c.res.status,
-    duration_ms: durationMs
+    duration_ms: durationMs,
+    ...(experiment ? {
+      experiment_id: experiment.experiment_id,
+      condition: experiment.condition,
+      agent_id: experiment.agent_id,
+      session_id: experiment.session_id,
+    } : {}),
   }, 'request');
 };
